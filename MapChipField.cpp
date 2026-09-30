@@ -4,6 +4,7 @@
 #include <sstream>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 
 using namespace KamataEngine;
 
@@ -20,88 +21,131 @@ std::map<char, MapChipType> mapChipTypeTable =
 	{'C', MapChipType::kCheckpoint},
 };
 
+// CSVを分割する関数
+std::vector<std::string> SplitCsvLine(const std::string& line) 
+{
+	std::vector<std::string> cells;
+
+	size_t begin = 0;
+
+	while (true) 
+	{
+		const size_t commaPosition = line.find(',', begin);
+
+		if (commaPosition == std::string::npos)
+		{
+			cells.push_back(line.substr(begin));
+			break;
+		}
+
+		cells.push_back(line.substr(begin, commaPosition - begin));
+
+		begin = commaPosition + 1;
+	}
+
+	return cells;
 }
 
-void MapChipField::ResetMapChipData() 
+}
+
+void MapChipField::ResetMapChipData(uint32_t width, uint32_t height) 
 {
-    mapChipData_.data.clear();
-	mapChipData_.data.resize(kNumBlockVirtical);
-	for (std::vector<MapChipDataUnit>& mapChipDataLine : mapChipData_.data) 
-	{
-	
-		mapChipDataLine.resize(kNumBlockHorizontal);
-	}
+	numBlockHorizontal_ = width;
+	numBlockVertical_ = height;
+
+	// 以前のデータを破棄して指定サイズの空白マップを作る
+	mapChipData_.data.assign(numBlockVertical_, std::vector<MapChipDataUnit>(numBlockHorizontal_, MapChipDataUnit{}));
 }
 
 void MapChipField::LoadMapChipCsv(const std::string& filePath)
 {
-	// マップチップデータをリセット
-	ResetMapChipData();
+	
 
 	// ファイルを開く
-	std::ifstream file;
-	file.open(filePath);
-	assert(file.is_open());
+	std::ifstream file(filePath);
+	assert(file.is_open() && "マップチップCSVを開けませんでした");
 
-	// マップチップCSV
-	std::stringstream mapChipCsv;
-	// ファイルの内容を文字列ストリームにコピー
-	mapChipCsv << file.rdbuf();
+	// 最初に全行を文字列として読み込む
+	std::vector<std::vector<std::string>> csvRows;
+
+	std::string line;
+	while (std::getline(file, line)) 
+	{
+		// CRLFのCRが残る環境への対策
+		if (!line.empty() && line.back() == '\r')
+		{
+			line.pop_back();
+		}
+
+		csvRows.push_back(SplitCsvLine(line));
+	}
+
 	// ファイルを閉じる
 	file.close();
+	
+	assert(!csvRows.empty() && "マップチップCSVが空です");
 
-	// CSVからマップチップデータを読み込む
-	for (uint32_t i = 0; i < kNumBlockVirtical; ++i) 
+	// 行数を高さとする
+	const uint32_t height = static_cast<uint32_t>(csvRows.size());
+
+	// 最も列数が多い行を幅とする
+	uint32_t width = 0;
+
+	for (const std::vector<std::string>& row : csvRows)
 	{
-		std::string line;
-		getline(mapChipCsv, line);
+		width = (std::max)(width, static_cast<uint32_t>(row.size()));
+	}
 
-		// 1行分の文字列をストリームに変換して解析しやすくする
-		std::istringstream lineStream(line);
+	assert(width > 0 && "マップチップCSVに列がありません");
+	
+	// マップチップデータをリセット
+	ResetMapChipData(width, height);
 
-		for (uint32_t j = 0; j < kNumBlockHorizontal; ++j)
+	// 読み込んだ文字列をマップチップに変換する
+	for (uint32_t y = 0; y < height; ++y) 
+	{
+		const std::vector<std::string>& row = csvRows[y];
+
+		for (uint32_t x = 0; x < row.size(); ++x) 
 		{
-		
-			std::string word;
-			getline(lineStream, word, ',');
+			const std::string& word = row[x];
 
-			// 空白の場合はスキップ
 			if (word.empty())
 			{
 				continue;
 			}
-			
-			// 先頭文字がいずれかのマップチップ種別に該当するか確認
-			if (!mapChipTypeTable.contains(word[kChipType]))
+
+			const auto typeIterator = mapChipTypeTable.find(word[kChipType]);
+
+			if (typeIterator == mapChipTypeTable.end())
 			{
 				continue;
 			}
 
-			// 先頭文字でマップチップのタイプを判別
-			mapChipData_.data[i][j].type = mapChipTypeTable[word[kChipType]];
+			MapChipDataUnit& mapChip = mapChipData_.data[y][x];
 
-			// サブIDを含まない場合はスキップ(0番で確定)
+			mapChip.type = typeIterator->second;
+
+			// B、Eなど、サブIDがない場合は0のまま
 			if (word.size() <= kChipSubID)
 			{
 				continue;
 			}
 
-			// マップチップのサブIDを設定
-			// G10 のような2桁のサブIDにも対応する。
-			mapChipData_.data[i][j].subID = static_cast<uint8_t>(std::stoi(word.substr(kChipSubID)));
+			const int32_t subID = std::stoi(word.substr(kChipSubID));
+
+			assert(subID >= 0 && subID <= UINT8_MAX && "マップチップのサブIDが範囲外です");
+
+			mapChip.subID = static_cast<uint8_t>(subID);
 		}
 	}
 
 }
 
 // 横、縦のインデックス（番号）を指定してその位置のマップチップ種別を取得する関数
-MapChipType MapChipField::GetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex)
+MapChipType MapChipField::GetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex) const
 {
-	if (xIndex < 0 || xIndex >= static_cast<int32_t>(kNumBlockHorizontal))
-	{
-		return MapChipType::kBlank;
-	}
-	if (yIndex < 0 || yIndex >= static_cast<int32_t>(kNumBlockVirtical))
+	if (!IsInBounds(xIndex, yIndex))
 	{
 		return MapChipType::kBlank;
 	}
@@ -111,15 +155,10 @@ MapChipType MapChipField::GetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex)
 }
 
 // 横、縦のインデックス（番号）を指定してそのマスのサブIDを返す関数
-uint8_t MapChipField::GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex)
+uint8_t MapChipField::GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex) const
 {
 	// 範囲外アクセスの場合はデフォルト値として 0 を返す
-	if (xIndex < 0 || xIndex >= static_cast<int32_t>(kNumBlockHorizontal))
-	{
-		return 0;
-	}
-
-	if (yIndex < 0 || yIndex >= static_cast<int32_t>(kNumBlockVirtical))
+	if (!IsInBounds(xIndex, yIndex))
 	{
 		return 0;
 	}
@@ -157,4 +196,10 @@ MapChipField::Rect MapChipField::GetRectByIndex(int32_t xIndex, int32_t yIndex)
 	rect.top = center.y + kBlockHeight / 2.0f;
 
 	return rect;
+}
+
+bool MapChipField::IsInBounds(int32_t xIndex, int32_t yIndex) const
+{
+	return xIndex >= 0 && xIndex < static_cast<int32_t>(numBlockHorizontal_) && 
+		yIndex >= 0 && yIndex < static_cast<int32_t>(numBlockVertical_);
 }

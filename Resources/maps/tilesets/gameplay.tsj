@@ -1,0 +1,14 @@
+{
+  "columns": 1,
+  "image": "collision-solid.svg",
+  "imageheight": 32,
+  "imagewidth": 32,
+  "margin": 0,
+  "name": "GameplayCollision",
+  "spacing": 0,
+  "tilecount": 1,
+  "tileheight": 32,
+  "tilewidth": 32,
+  "type": "tileset",
+  "version": "1.10"
+}

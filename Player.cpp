@@ -120,218 +120,156 @@ void Player::Update()
 // 移動入力
 void Player::MoveInput()
 {
-	const bool isRightPushed = Input::GetInstance()->PushKey(DIK_RIGHT) || GamePadInput::IsRightPushed();
-	const bool isLeftPushed = Input::GetInstance()->PushKey(DIK_LEFT) || GamePadInput::IsLeftPushed();
-	const bool isJumpPushed = Input::GetInstance()->PushKey(DIK_UP) || GamePadInput::IsJumpPushed();
-	const bool isJumpTriggered = Input::GetInstance()->TriggerKey(DIK_UP) || GamePadInput::IsJumpTriggered();
-
-	if (!isJumpCharging_) 
+	// 衝突フレームの攻撃判定が終わった次フレームから通常操作へ戻す。
+	if (isJumpRushing_ && (isJumpRushEnding_ || onGround_))
 	{
-		// 左右移動操作
-		if (isRightPushed || isLeftPushed) {
+		isJumpRushing_ = false;
+		isJumpRushEnding_ = false;
+		isAttackEffectVisible_ = false;
+	}
 
-			// 左右加速
-			Vector3 acceleration = {};
-			if (isRightPushed) 
+	Input* input = Input::GetInstance();
+	const bool isRightPushed = input->PushKey(DIK_RIGHT) || input->PushKey(DIK_D) || GamePadInput::IsRightPushed();
+	const bool isLeftPushed = input->PushKey(DIK_LEFT) || input->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
+	const bool isJumpPushed = input->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
+	const bool isJumpTriggered = input->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
+
+	auto beginTurn = [this](LRDirection direction) {
+		if (lrDirection_ == direction)
+		{
+			return;
+		}
+		lrDirection_ = direction;
+		turnFirstRotationY_ = worldTransform_.rotation_.y;
+		turnTimer_ = kTimeTurn;
+	};
+
+	// 通常移動は矢印キーとA/Dのどちらでも行える。
+	// チャージ中と突進中は方向入力を通常移動に使わない。
+	if (!isRushAiming_ && !isJumpRushing_)
+	{
+		if (isRightPushed != isLeftPushed)
+		{
+			if (isRightPushed)
 			{
-				// 左移動中の右移動
-				if (velocity_.x < 0.0f) {
-					// 速度と逆方向に入力中は急ブレーキ
+				if (velocity_.x < 0.0f)
+				{
 					velocity_.x *= (1.0f - kAttenuation);
 				}
-
-				acceleration.x += kAcceleration;
-
-				if (lrDirection_ != LRDirection::kRight) {
-					lrDirection_ = LRDirection::kRight;
-					// 旋回開始時の角度を記録する
-					turnFirstRotationY_ = worldTransform_.rotation_.y;
-
-					turnTimer_ = kTimeTurn;
-				}
-
-			} else if (isLeftPushed) {
-
-				// 右移動中の左入力
-				if (velocity_.x > 0.0f) {
-
-					// 速度と逆方向に入力中は急ブレーキ
-					velocity_.x *= (1.0f - kAttenuation);
-				}
-
-				acceleration.x -= kAcceleration;
-
-				if (lrDirection_ != LRDirection::kLeft) {
-					lrDirection_ = LRDirection::kLeft;
-					// 旋回開始時の角度を記録する
-					turnFirstRotationY_ = worldTransform_.rotation_.y;
-					// 旋回タイマーに時間を設定する
-					turnTimer_ = kTimeTurn;
-				}
+				velocity_.x += kAcceleration;
+				beginTurn(LRDirection::kRight);
 			}
-
-			// 加速/減速
-			velocity_.x += acceleration.x;
-			velocity_.y += acceleration.y;
-
-			// 最大速度制限
+			else
+			{
+				if (velocity_.x > 0.0f)
+				{
+					velocity_.x *= (1.0f - kAttenuation);
+				}
+				velocity_.x -= kAcceleration;
+				beginTurn(LRDirection::kLeft);
+			}
 			velocity_.x = std::clamp(velocity_.x, -kLimitRunSpeed, kLimitRunSpeed);
-
-		} else {
-			// 非入力時は移動減衰を掛ける
+		}
+		else
+		{
 			velocity_.x *= (1.0f - kAttenuation);
 		}
 	}
 
-	KamataEngine::Vector2 stickDirection{};
-
-	// 接地状態
-	if (onGround_) 
+	if (onGround_ && velocity_.y > 0.0f)
 	{
-		// ジャンプ開始
-		if (velocity_.y > 0.0f) 
-		{
-			// 空中状態に移行
-			onGround_ = false;
-		}
+		onGround_ = false;
+	}
 
-		// ↑を押した瞬間にチャージ開始
-		if (!isJumpCharging_ && isJumpTriggered)
-		{
-			isJumpCharging_ = true;
-			jumpChargeFrame_ = 0;
-			chargedJumpAngle_ = std::numbers::pi_v<float> / 2.0f;
-			// チャージ開始前に行っていた通常移動の慣性は止める。
-			// 以降の水流・移動足場による影響は、チャージ中に消去しない。
-			velocity_.x = 0.0f;
-		}
-		
-		
-		// チャージ中の処理
-		if (isJumpCharging_) 
-		{
-			// 押している間はゲージを増やす
-			if (isJumpPushed)
-			{
-
-				jumpChargeFrame_ = (std::min)(jumpChargeFrame_ + 1, kChargeMaxFrame);
-
-				// 通常の左右入力は MoveInput の先頭で止めている。
-				// ここで横速度を 0 にすると、水流や移動足場の影響まで消えてしまうため維持する。
-
-				// 左右キーとコントローラーのスティックで発射角度だけを変更する
-				if (GamePadInput::GetLeftStickDirection(stickDirection))
-				{
-					// 右が0度、上が90度、左が180度
-					chargedJumpAngle_ = std::atan2(stickDirection.y, stickDirection.x);
-				} 
-				else if (isLeftPushed)
-				{
-					// キーボード／十字キー操作時
-					chargedJumpAngle_ += kJumpAngleSpeed;
-				}
-				else if (isRightPushed)
-				{
-					chargedJumpAngle_ -= kJumpAngleSpeed;
-				}
-
-				// 20度～160度に制限
-				chargedJumpAngle_ = std::clamp(chargedJumpAngle_, kJumpAngleMin, kJumpAngleMax);
-			}
-			// キーを離したら、3段階の高さでジャンプする
-			else 
-			{
-				float jumpVelocity = kJumpVelocityLow;
-
-				if (jumpChargeFrame_ >= kChargeLevel2Frame) 
-				{
-					jumpVelocity = kJumpVelocityHigh;
-				} else if (jumpChargeFrame_ >= kChargeLevel1Frame)
-				{
-					jumpVelocity = kJumpVelocityMiddle;
-				}
-
-				velocity_.x = std::cos(chargedJumpAngle_) * jumpVelocity * 2.0f;
-				velocity_.y = std::sin(chargedJumpAngle_) * jumpVelocity;
-				onGround_ = false;
-				isJumpCharging_ = false;
-				jumpChargeFrame_ = 0;
-				SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
-			}
-		}
-
-	} 
-	else
+	// Spaceを押した瞬間は真上を既定方向としてチャージを開始する。
+	if (!isRushAiming_ && !isJumpRushing_ && (onGround_ || canAirJump_) && isJumpTriggered)
 	{
+		isRushAiming_ = true;
+		rushAngle_ = std::numbers::pi_v<float> / 2.0f;
+		velocity_.x = 0.0f;
+	}
 
-		// 敵ヒットで得た空中ジャンプでも、↑を押した瞬間からチャージする
-		if (!isJumpCharging_ && canAirJump_ && isJumpTriggered)
+	if (isRushAiming_)
+	{
+		if (isJumpPushed)
 		{
-			isJumpCharging_ = true;
-			jumpChargeFrame_ = 0;
-			chargedJumpAngle_ = std::numbers::pi_v<float> / 2.0f;
-			// 空中チャージ開始時も、開始前の通常移動の横速度だけを止める。
-			velocity_.x = 0.0f;
-		}
+			
 
-		if (isJumpCharging_) {
-			if (isJumpPushed)
+			// WASD（または矢印キー）の縦横各-1/0/1を合成し、8方向に固定する。
+			int32_t directionX = 0;
+			int32_t directionY = 0;
+			const bool keyboardLeft = input->PushKey(DIK_A) || input->PushKey(DIK_LEFT);
+			const bool keyboardRight = input->PushKey(DIK_D) || input->PushKey(DIK_RIGHT);
+			const bool keyboardUp = input->PushKey(DIK_W) || input->PushKey(DIK_UP);
+			const bool keyboardDown = input->PushKey(DIK_S) || input->PushKey(DIK_DOWN);
+			const bool hasKeyboardDirection = keyboardLeft || keyboardRight || keyboardUp || keyboardDown;
+			if (hasKeyboardDirection)
 			{
-				jumpChargeFrame_ = (std::min)(jumpChargeFrame_ + 1, kChargeMaxFrame);
-
-				// 通常の左右入力は MoveInput の先頭で止めている。
-				// 水流や移動足場による横方向の影響は維持する。
-
-				// 左右キーで発射角度だけを変更する
-				if (GamePadInput::GetLeftStickDirection(stickDirection))
-				{
-					// 右が0度、上が90度、左が180度
-					chargedJumpAngle_ = std::atan2(stickDirection.y, stickDirection.x);
-				} 
-				else if (isLeftPushed) 
-				{
-					chargedJumpAngle_ += kJumpAngleSpeed;
-				} 
-				else if (isRightPushed) 
-				{
-					chargedJumpAngle_ -= kJumpAngleSpeed;
-				}
-
-				// 20度～160度に制限
-				chargedJumpAngle_ = std::clamp(chargedJumpAngle_, kJumpAngleMin, kJumpAngleMax);
-
-				// チャージ中は少し空中で止める
-				velocity_.y = -0.01f;
-			} 
+				directionX = keyboardRight == keyboardLeft ? 0 : keyboardRight ? 1 : -1;
+				directionY = keyboardUp == keyboardDown ? 0 : keyboardUp ? 1 : -1;
+			}
 			else
 			{
-				// 離した時点のチャージ量から、ジャンプ初速を決める
-				float jumpVelocity = kJumpVelocityLow;
-
-				if (jumpChargeFrame_ >= kChargeLevel2Frame)
+				Vector2 stickDirection{};
+				if (GamePadInput::GetLeftStickDirection(stickDirection))
 				{
-					jumpVelocity = kJumpVelocityHigh;
-				} else if (jumpChargeFrame_ >= kChargeLevel1Frame) 
-				{
-					jumpVelocity = kJumpVelocityMiddle;
+					directionX = stickDirection.x > 0.0f ? 1 : stickDirection.x < 0.0f ? -1 : 0;
+					directionY = stickDirection.y > 0.0f ? 1 : stickDirection.y < 0.0f ? -1 : 0;
 				}
-
-				velocity_.x = std::cos(chargedJumpAngle_) * jumpVelocity * 2.0f;
-				velocity_.y = std::sin(chargedJumpAngle_) * jumpVelocity;
-
-				// 敵ヒットで得た空中ジャンプ権を消費する
-				canAirJump_ = false;
-				isJumpCharging_ = false;
-				jumpChargeFrame_ = 0;
-				SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
 			}
-		} 
+
+			if (directionX != 0 || directionY != 0)
+			{
+				rushAngle_ = std::atan2(static_cast<float>(directionY), static_cast<float>(directionX));
+				if (directionX > 0)
+				{
+					beginTurn(LRDirection::kRight);
+				}
+				else if (directionX < 0)
+				{
+					beginTurn(LRDirection::kLeft);
+				}
+			}
+
+			// 空中での再チャージ中はわずかに落下させる。
+			if (!onGround_)
+			{
+				velocity_.y = -0.01f;
+			}
+		}
 		else
 		{
-			// 空中ジャンプ権がない場合は通常どおり落下する
-			velocity_.y -= kGravityAcceleration;
-			velocity_.y = (std::max)(velocity_.y, -kLimitFallSpeed);
+			
+
+			float directionX = std::cos(rushAngle_);
+			float directionY = std::sin(rushAngle_);
+			// sin(pi) などの誤差で水平突進が傾かないよう、ほぼ0の成分を固定する。
+			if (std::abs(directionX) < 0.001f)
+			{
+				directionX = 0.0f;
+			}
+			if (std::abs(directionY) < 0.001f)
+			{
+				directionY = 0.0f;
+			}
+			velocity_.x = directionX * kJumpRushSpeed;
+			velocity_.y = directionY * kJumpRushSpeed;
+			onGround_ = false;
+
+			isRushAiming_ = false;
+			isJumpRushing_ = true;
+			isJumpRushEnding_ = false;
+			isAttackEffectVisible_ = true;
+			jumpRushFrame_ = 0;
+			SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
 		}
+	}
+
+	// 突進中は全方向の移動量を揃えるため重力を加えない。
+	if (!onGround_ && !isRushAiming_ && !isJumpRushing_)
+	{
+		velocity_.y -= kGravityAcceleration;
+		velocity_.y = (std::max)(velocity_.y, -kLimitFallSpeed);
 	}
 }
 
@@ -349,7 +287,10 @@ void Player::AttachToVine(const Vector3& anchorPosition)
 	vineAngle_ = std::clamp(vineAngle_, -1.2f, 1.2f);
 	vineAngularVelocity_ = 0.0f;
 	isHanging_ = true;
-	isJumpCharging_ = false;
+	isRushAiming_ = false;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	isAttackEffectVisible_ = false;
 	onGround_ = false;
 	velocity_ = {};
 }
@@ -371,14 +312,17 @@ void Player::LaunchFromFountain(float launchVelocity)
 {
 	velocity_.y = launchVelocity;
 	onGround_ = false;
-	isJumpCharging_ = false;
+	isRushAiming_ = false;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	isAttackEffectVisible_ = false;
 }
 
 void Player::UpdateHanging()
 {
-	const bool isLeftPushed = Input::GetInstance()->PushKey(DIK_LEFT) || GamePadInput::IsLeftPushed();
-	const bool isRightPushed = Input::GetInstance()->PushKey(DIK_RIGHT) || GamePadInput::IsRightPushed();
-	const bool isJumpTriggered = Input::GetInstance()->TriggerKey(DIK_UP) || GamePadInput::IsJumpTriggered();
+	const bool isLeftPushed = Input::GetInstance()->PushKey(DIK_LEFT) || Input::GetInstance()->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
+	const bool isRightPushed = Input::GetInstance()->PushKey(DIK_RIGHT) || Input::GetInstance()->PushKey(DIK_D) || GamePadInput::IsRightPushed();
+	const bool isJumpTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
 
 	if (isLeftPushed)
 	{
@@ -439,6 +383,48 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	const int32_t mapHeight = static_cast<int32_t>(mapChipField_->GetNumBlockVirtical());
 
 	auto isBlock = [this](int32_t xIndex, int32_t yIndex) { return mapChipField_->GetMapChipTypeByIndex(xIndex, yIndex) == MapChipType::kBlock; };
+	struct TileRange
+	{
+		int32_t minX;
+		int32_t maxX;
+		int32_t minY;
+		int32_t maxY;
+	};
+
+	// 移動経路を囲む矩形だけをマップ座標へ変換する。
+	// 1マス分広げることで、ちょうど境界上にいる場合も判定対象へ含める。
+	auto makeTileRange = [this, mapWidth, mapHeight](float left, float right, float bottom, float top) {
+		if (mapWidth <= 0 || mapHeight <= 0)
+		{
+			return TileRange{0, -1, 0, -1};
+		}
+
+		const IndexSet indices[] = {
+			mapChipField_->GetMapChipIndexSetByPosition({left, bottom, 0.0f}),
+			mapChipField_->GetMapChipIndexSetByPosition({left, top, 0.0f}),
+			mapChipField_->GetMapChipIndexSetByPosition({right, bottom, 0.0f}),
+			mapChipField_->GetMapChipIndexSetByPosition({right, top, 0.0f}),
+		};
+
+		int32_t minX = indices[0].xIndex;
+		int32_t maxX = indices[0].xIndex;
+		int32_t minY = indices[0].yIndex;
+		int32_t maxY = indices[0].yIndex;
+		for (const IndexSet& index : indices)
+		{
+			minX = (std::min)(minX, index.xIndex);
+			maxX = (std::max)(maxX, index.xIndex);
+			minY = (std::min)(minY, index.yIndex);
+			maxY = (std::max)(maxY, index.yIndex);
+		}
+
+		return TileRange{
+			std::clamp(minX - 1, 0, mapWidth - 1),
+			std::clamp(maxX + 1, 0, mapWidth - 1),
+			std::clamp(minY - 1, 0, mapHeight - 1),
+			std::clamp(maxY + 1, 0, mapHeight - 1),
+		};
+	};
 
 	// X 軸方向の衝突を先に解決する。
 	if (info.move.x > 0.0f) 
@@ -447,10 +433,11 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 		const float targetRight = currentRight + info.move.x;
 		const float playerBottom = worldTransform_.translation_.y - halfHeight;
 		const float playerTop = worldTransform_.translation_.y + halfHeight;
+		const TileRange range = makeTileRange(currentRight - halfWidth * 2.0f, targetRight, playerBottom, playerTop);
 
-		for (int32_t y = 0; y < mapHeight; ++y)
+		for (int32_t y = range.minY; y <= range.maxY; ++y)
 		{
-			for (int32_t x = 0; x < mapWidth; ++x)
+			for (int32_t x = range.minX; x <= range.maxX; ++x)
 			{
 				if (!isBlock(x, y))
 				{
@@ -472,10 +459,11 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 		const float targetLeft = currentLeft + info.move.x;
 		const float playerBottom = worldTransform_.translation_.y - halfHeight;
 		const float playerTop = worldTransform_.translation_.y + halfHeight;
+		const TileRange range = makeTileRange(targetLeft, currentLeft + halfWidth * 2.0f, playerBottom, playerTop);
 
-		for (int32_t y = 0; y < mapHeight; ++y)
+		for (int32_t y = range.minY; y <= range.maxY; ++y)
 		{
-			for (int32_t x = 0; x < mapWidth; ++x) 
+			for (int32_t x = range.minX; x <= range.maxX; ++x)
 			{
 				if (!isBlock(x, y))
 				{
@@ -499,10 +487,11 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	if (info.move.y > 0.0f) {
 		const float currentTop = worldTransform_.translation_.y + halfHeight;
 		const float targetTop = currentTop + info.move.y;
+		const TileRange range = makeTileRange(playerLeft, playerRight, currentTop - halfHeight * 2.0f, targetTop);
 
-		for (int32_t y = 0; y < mapHeight; ++y)
+		for (int32_t y = range.minY; y <= range.maxY; ++y)
 		{
-			for (int32_t x = 0; x < mapWidth; ++x) 
+			for (int32_t x = range.minX; x <= range.maxX; ++x)
 			{
 				if (!isBlock(x, y))
 				{
@@ -523,10 +512,11 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	{
 		const float currentBottom = worldTransform_.translation_.y - halfHeight;
 		const float targetBottom = currentBottom + info.move.y;
+		const TileRange range = makeTileRange(playerLeft, playerRight, targetBottom, currentBottom + halfHeight * 2.0f);
 
-		for (int32_t y = 0; y < mapHeight; ++y)
+		for (int32_t y = range.minY; y <= range.maxY; ++y)
 		{
-			for (int32_t x = 0; x < mapWidth; ++x)
+			for (int32_t x = range.minX; x <= range.maxX; ++x)
 			{
 				if (!isBlock(x, y))
 				{
@@ -1080,15 +1070,23 @@ Player::GimmickHitSide Player::ResolveSolidGimmickCollision(const AABB& gimmickA
 	return GimmickHitSide::kBottom;
 }
 
-// 上方向攻撃用のAABBを取得
+// 攻撃用のAABBを取得
 AABB Player::GetAttackAABB()
 {
-	// 攻撃エフェクトと同じく、プレイヤーの上側を攻撃判定の中心にする
-	Vector3 attackCenter = GetWorldPosition() + Vector3{0.0f, kAttackHitOffsetY, 0.0f};
+	Vector3 attackCenter = GetWorldPosition();
+	float attackWidth = kRushAttackSize;
+	float attackHeight = kRushAttackSize;
+	if (!isJumpRushing_)
+	{
+		// ゲームパッドXで残している従来攻撃は、従来どおり上方向の判定を使う。
+		attackCenter = attackCenter + Vector3{0.0f, kAttackHitOffsetY, 0.0f};
+		attackWidth = kAttackHitWidth;
+		attackHeight = kAttackHitHeight;
+	}
 
 	AABB aabb;
-	aabb.min = {attackCenter.x - kAttackHitWidth / 2.0f, attackCenter.y - kAttackHitHeight / 2.0f, attackCenter.z - kAttackHitWidth / 2.0f};
-	aabb.max = {attackCenter.x + kAttackHitWidth / 2.0f, attackCenter.y + kAttackHitHeight / 2.0f, attackCenter.z + kAttackHitWidth / 2.0f};
+	aabb.min = {attackCenter.x - attackWidth / 2.0f, attackCenter.y - attackHeight / 2.0f, attackCenter.z - attackWidth / 2.0f};
+	aabb.max = {attackCenter.x + attackWidth / 2.0f, attackCenter.y + attackHeight / 2.0f, attackCenter.z + attackWidth / 2.0f};
 
 	return aabb;
 }
@@ -1152,8 +1150,10 @@ void Player::Respawn(const Vector3& position, bool restoreHp)
 	onGround_ = false;
 	isHanging_ = false;
 	vineDetachCooldown_ = 0;
-	isJumpCharging_ = false;
-	jumpChargeFrame_ = 0;
+	isRushAiming_ = false;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	jumpRushFrame_ = 0;
 	behavior_ = Behavior::kRoot;
 	behaviorRequest_ = Behavior::kUnknown;
 	isAttackEffectVisible_ = false;
@@ -1172,12 +1172,8 @@ void Player::BehaviorRootUpdate()
 		canAirJump_ = false;
 	}
 
-	const bool willStartJumpCharge = (onGround_ || canAirJump_) &&
-		(Input::GetInstance()->TriggerKey(DIK_UP) || GamePadInput::IsJumpTriggered());
-
-	// 攻撃キーを押したら
-	if (!isJumpCharging_ && !willStartJumpCharge &&
-		(Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsAttackTriggered())) 
+	// Spaceは突進ジャンプ専用。ゲームパッドXの従来攻撃だけ互換操作として残す。
+	if (!isRushAiming_ && !isJumpRushing_ && GamePadInput::IsAttackTriggered())
 	{
 		if (!onGround_ && isAttackedInAir_)
 		{
@@ -1215,6 +1211,26 @@ void Player::BehaviorRootUpdate()
 	// 接地状態の切り替え
 	ContactToGroundStateSwitch(collisionMapInfo);
 
+	if (isJumpRushing_)
+	{
+		++jumpRushFrame_;
+		const bool rushFinished = jumpRushFrame_ >= kJumpRushFrame;
+		const bool hitSurface = collisionMapInfo.hitWall || collisionMapInfo.isCeiling || collisionMapInfo.isLanding;
+		if (rushFinished || hitSurface)
+		{
+			// 突進速度を残さず、次フレームから移動入力を反映できるようにする。
+			velocity_ = {};
+			// GameSceneの敵判定がこの後に走るため、衝突フレーム中は攻撃を有効に保つ。
+			isJumpRushEnding_ = true;
+		}
+
+		// 突進中の攻撃表示はプレイヤー中心に置く。
+		worldTransformAttack_.translation_ = worldTransform_.translation_;
+		worldTransformAttack_.rotation_ = {};
+		worldTransformAttack_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
+		worldTransformAttack_.scale_ = {kRushAttackSize, kRushAttackSize, kRushAttackSize};
+	}
+
 	// 旋回制御
 	if (turnTimer_ > 0.0f)
 	{
@@ -1247,6 +1263,9 @@ void Player::BehaviorRootUpdate()
 // 攻撃行動初期化
 void Player::BehaviorAttackInitialize() 
 {
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	worldTransformAttack_.scale_ = {1.0f, 1.0f, 1.0f};
 	// カウンター初期化
 	attackParameter_ = 0.0f;
 
@@ -1390,6 +1409,9 @@ void Player::OnAttackHit() {
 void Player::BehaviorKnockbackInitialize()
 {
 	knockbackParameter_ = 0.0f;
+	isRushAiming_ = false;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
 	// 攻撃エフェクトを消す
 	isAttackEffectVisible_ = false;
 

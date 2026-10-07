@@ -47,12 +47,6 @@ public:
 	static inline const float kBlockWidth = 1.0f;
 	static inline const float kBlockHeight = 1.0f;
 
-	// ブロックの個数
-	static inline const uint32_t kNumBlockVirtical = 100;
-	static inline const uint32_t kNumBlockHorizontal = 23;
-
-public:
-	
 	// マップチップCSVの文字番号
 	enum MapChipCharIndex
 	{
@@ -60,29 +54,36 @@ public:
 		kChipSubID = 1 // タイプごとのサブID
 	};
 
-	MapChipData mapChipData_;
-
-	void ResetMapChipData();
+public:
+	
+	void ResetMapChipData(uint32_t width, uint32_t height);
+	void SetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex, MapChipType type, uint8_t subID = 0);
 
 	void LoadMapChipCsv(const std::string& filePath);
-	
+
 	// 横、縦のインデックス（番号）を指定してその位置のマップチップ種別を取得する関数
-	MapChipType GetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex);
+	MapChipType GetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex) const;
 	
 	// 横、縦のインデックス（番号）を指定してそのマスのサブIDを返す関数
-	uint8_t GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex);
+	uint8_t GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex) const;
 
 	// 指定座標がマップチップの何番の位置にあるのかを計算する関数
-	IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position);
+	IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position) const;
 
-	uint32_t GetNumBlockVirtical() const { return kNumBlockVirtical; }
+	uint32_t GetNumBlockVirtical() const { return numBlockVertical_; }
 
-	uint32_t GetNumBlockHorizontal() const { return kNumBlockHorizontal; }
+	uint32_t GetNumBlockHorizontal() const { return numBlockHorizontal_; }
+	bool IsInBounds(int32_t xIndex, int32_t yIndex) const;
 
 	// 横、縦のインデックス（番号）を指定してその位置のマップチップのワールド座標を取得する関数
-	KamataEngine::Vector3 GetMapChipPositionByIndex(int32_t xIndex, int32_t yIndex);
+	KamataEngine::Vector3 GetMapChipPositionByIndex(int32_t xIndex, int32_t yIndex) const;
 
 	// マップチップ番号を指定して、指定ブロックの全方向の境界の座標を得る関数
-	Rect GetRectByIndex(int32_t xIndex, int32_t yIndex);
+	Rect GetRectByIndex(int32_t xIndex, int32_t yIndex) const;
+	
+private:
+	MapChipData mapChipData_;
 
+	uint32_t numBlockVertical_ = 0;
+	uint32_t numBlockHorizontal_ = 0;
 };

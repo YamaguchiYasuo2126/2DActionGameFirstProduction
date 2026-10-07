@@ -168,6 +168,7 @@
     <ClCompile Include="BaseEnemy.cpp" />
     <ClCompile Include="CameraController.cpp" />
 	<ClCompile Include="CheckpointGate.cpp" />
+	<ClCompile Include="CheckpointTrigger.cpp" />
     <ClCompile Include="ClearScene.cpp" />
     <ClCompile Include="DeathParticles.cpp" />
     <ClCompile Include="EasingUtility.cpp" />
@@ -182,6 +183,7 @@
     <ClCompile Include="HitEffect.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MapChipField.cpp" />
+	<ClCompile Include="TiledRoom.cpp" />
     <ClCompile Include="MyMathUtility.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="ShieldEnemy.cpp" />
@@ -294,6 +296,7 @@
     <ClInclude Include="BaseEnemy.h" />
     <ClInclude Include="CameraController.h" />
 	<ClInclude Include="CheckpointGate.h" />
+	<ClInclude Include="CheckpointTrigger.h" />
     <ClInclude Include="ClearScene.h" />
     <ClInclude Include="DeathParticles.h" />
     <ClInclude Include="EasingUtility.h" />
@@ -308,6 +311,9 @@
     <ClInclude Include="GuardEffect.h" />
     <ClInclude Include="HitEffect.h" />
     <ClInclude Include="MapChipField.h" />
+	<ClInclude Include="TiledRoom.h" />
+	<ClInclude Include="WorldProgress.h" />
+	<ClInclude Include="ThirdParty\nlohmann\json.hpp" />
     <ClInclude Include="MyMathUtility.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="ShieldEnemy.h" />

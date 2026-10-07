@@ -57,6 +57,7 @@ public:
 public:
 	
 	void ResetMapChipData(uint32_t width, uint32_t height);
+	void SetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex, MapChipType type, uint8_t subID = 0);
 
 	void LoadMapChipCsv(const std::string& filePath);
 
@@ -67,11 +68,12 @@ public:
 	uint8_t GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex) const;
 
 	// 指定座標がマップチップの何番の位置にあるのかを計算する関数
-	IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position);
+	IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position) const;
 
 	uint32_t GetNumBlockVirtical() const { return numBlockVertical_; }
 
 	uint32_t GetNumBlockHorizontal() const { return numBlockHorizontal_; }
+	bool IsInBounds(int32_t xIndex, int32_t yIndex) const;
 
 	// 横、縦のインデックス（番号）を指定してその位置のマップチップのワールド座標を取得する関数
 	KamataEngine::Vector3 GetMapChipPositionByIndex(int32_t xIndex, int32_t yIndex) const;
@@ -79,10 +81,6 @@ public:
 	// マップチップ番号を指定して、指定ブロックの全方向の境界の座標を得る関数
 	Rect GetRectByIndex(int32_t xIndex, int32_t yIndex) const;
 	
-private:
-	// 範囲判定関数
-	bool IsInBounds(int32_t xIndex, int32_t yIndex) const;
-
 private:
 	MapChipData mapChipData_;
 

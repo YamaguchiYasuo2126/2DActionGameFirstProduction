@@ -1,0 +1,19 @@
+{
+  "maps": [
+    {
+      "fileName": "rooms/room_01.tmj",
+      "height": 384,
+      "width": 640,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "fileName": "rooms/room_02.tmj",
+      "height": 384,
+      "width": 640,
+      "x": 640,
+      "y": 0
+    }
+  ],
+  "type": "world"
+}

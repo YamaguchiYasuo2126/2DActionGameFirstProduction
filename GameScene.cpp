@@ -13,8 +13,12 @@
 #include "Player.h"
 #include "StageGimmick.h"
 #include "CheckpointGate.h"
+#include "CheckpointTrigger.h"
 #include "GamePadInput.h"
 #include "SoundManager.h"
+
+#include <filesystem>
+#include <utility>
 
 
 using namespace KamataEngine;
@@ -22,6 +26,10 @@ using namespace KamataEngine;
 GameScene::GameScene() {}
 
 GameScene::~GameScene() {
+	ClearRoomObjects();
+	delete player_;
+	player_ = nullptr;
+
 	// 3Dモデルデータの解放
 	// 自キャラの3Dモデルデータの解放
 	delete modelPlayer_;
@@ -44,19 +52,6 @@ GameScene::~GameScene() {
 	// Stage 3の飛行敵の3Dモデルデータの解放
 	delete modelFlyingEnemy_;
 
-	// 敵キャラクターのインスタンスを解放する
-	for (BaseEnemy* enemy : enemies_)
-	{
-		delete enemy;
-	}
-	enemies_.clear();
-
-	for (BaseGimmick* gimmick : gimmicks_)
-	{
-		delete gimmick;
-	}
-	gimmicks_.clear();
-
 	// ブロックの3Dモデルデータの解放
 	delete modelBlock_;
 	delete modelFountain_;
@@ -71,14 +66,6 @@ GameScene::~GameScene() {
 	delete modelThunderCloud_;
 	delete modelLightning_;
 
-	for (std::vector<WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
-		for (WorldTransform* worldTransformBlock : worldTransformBlockLine) {
-			delete worldTransformBlock;
-		}
-	}
-
-	worldTransformBlocks_.clear();
-
 	// デスパーティクルのモデルの開放
 	delete modelDeathParticles_;
 	// デスパーティクルのインスタンスの解放
@@ -87,13 +74,6 @@ GameScene::~GameScene() {
 		delete deathParticles_;
 		deathParticles_ = nullptr; // 安全のためnullptrを代入
 	}
-
-	// エフェクトのインスタンスを解放する
-	for (BaseEffect* effect : effects_)
-	{
-		delete effect;
-	}
-	effects_.clear();
 
 	// デバッグカメラの解放
 	delete debugCamera_;
@@ -119,7 +99,19 @@ GameScene::~GameScene() {
 	delete gameOverSelector_;
 	delete stageClearOverlay_;
 	delete stageClearBanner_;
-	delete hudGuide_;
+
+	for (Sprite* character : hudGuideCharacters_)
+	{
+		delete character;
+	}
+
+	hudGuideCharacters_.clear();
+
+	// ジャンプ表示の解放
+	delete jumpDirectionBack_;
+	delete jumpDirectionCursor_;
+	jumpDirectionBack_ = nullptr;
+	jumpDirectionCursor_ = nullptr;
 }
 
 void GameScene::Initialize(StageManager* stageDataManager) 
@@ -204,25 +196,41 @@ void GameScene::Initialize(StageManager* stageDataManager)
 
 	uint32_t textureHandle = TextureManager::Load("white1x1.png");
 
-	jumpGaugeBack_ = Sprite::Create(textureHandle, Vector2(40.0f, 650.0f));
-	jumpGaugeBack_->SetSize(Vector2(240.0f, 24.0f));
-	jumpGaugeBack_->SetColor(Vector4(0.1f, 0.1f, 0.1f, 0.8f));
-
-	jumpGaugeFill_ = Sprite::Create(textureHandle, Vector2(44.0f, 654.0f));
-	jumpGaugeFill_->SetColor(Vector4(0.2f, 0.8f, 1.0f, 1.0f));
-
-	jumpDirectionBack_ = Sprite::Create(textureHandle, Vector2(40.0f, 685.0f));
-	jumpDirectionBack_->SetSize(Vector2(180.0f, 24.0f));
+	jumpDirectionBack_ = Sprite::Create(textureHandle, Vector2(295.0f, 619.0f));
+	jumpDirectionBack_->SetSize(Vector2(100.0f, 100.0f));
 	jumpDirectionBack_->SetColor(Vector4(0.1f, 0.1f, 0.1f, 0.8f));
 
-	jumpDirectionCursor_ = Sprite::Create(textureHandle, Vector2(44.0f, 689.0f));
-	jumpDirectionCursor_->SetSize(Vector2(52.0f, 16.0f));
+	jumpDirectionCursor_ = Sprite::Create(textureHandle, Vector2(337.0f, 627.0f));
+	jumpDirectionCursor_->SetSize(Vector2(16.0f, 16.0f));
 	jumpDirectionCursor_->SetColor(Vector4(1.0f, 0.8f, 0.2f, 1.0f));
 
-	// FireAlpacaで作成した透過HUDを画面全体に重ねる。
-	const uint32_t hudGuideTextureHandle = TextureManager::Load("UI/hudGuide.png");
-	hudGuide_ = Sprite::Create(hudGuideTextureHandle, Vector2(0.0f, 0.0f));
-	hudGuide_->SetSize(Vector2(1280.0f, 720.0f));
+	// DebugTextはこの実行環境で初期化されないため、同じフォント画像から
+	// 通常のSpriteを生成して操作ガイドを表示する。
+	const uint32_t debugFontTexture = TextureManager::Load("debugfont.png");
+	auto appendHudText = [this, debugFontTexture](const std::string& text, float x, float y, float scale) {
+		constexpr float kFontWidth = 9.0f;
+		constexpr float kFontHeight = 18.0f;
+		constexpr int32_t kFontLineCount = 14;
+		float cursorX = x;
+		for (const unsigned char character : text)
+		{
+			if (character >= 32u && character <= 126u && character != ' ')
+			{
+				const int32_t fontIndex = static_cast<int32_t>(character) - 32;
+				Sprite* sprite = Sprite::Create(debugFontTexture, Vector2(cursorX, y));
+				sprite->SetSize(Vector2(kFontWidth * scale, kFontHeight * scale));
+				sprite->SetTextureRect(
+					Vector2(static_cast<float>(fontIndex % kFontLineCount) * kFontWidth,
+						static_cast<float>(fontIndex / kFontLineCount) * kFontHeight),
+					Vector2(kFontWidth, kFontHeight));
+				hudGuideCharacters_.push_back(sprite);
+			}
+			cursorX += kFontWidth * scale;
+		}
+	};
+	appendHudText("MOVE : LEFT/RIGHT OR A/D", 890.0f, 610.0f, 1.5f);
+	appendHudText("RUSH : HOLD SPACE + WASD", 890.0f, 640.0f, 1.5f);
+	appendHudText("PAD  : HOLD A + L STICK", 890.0f, 670.0f, 1.5f);
 
 	// ゲームオーバー時は、赤い背景と2つの選択カードを表示する。
 	gameOverOverlay_ = Sprite::Create(textureHandle, Vector2(0.0f, 0.0f));
@@ -253,13 +261,6 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	// マップチップの生成
 	mapChipField_ = new MapChipField;
 
-	// 現在のステージデータを取得する
-	const StageData& stageData = stageManager_->GetCurrentStageData();
-
-	// ステージファイルパスの設定
-	std::string stageFileName = "Resources/fields/" + stageData.name + ".csv";
-	mapChipField_->LoadMapChipCsv(stageFileName);
-
 	// カメラコントローラの生成
 	cameraController_ = new CameraController();
 
@@ -270,17 +271,25 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	HitEffect::SetCamera(cameraController_->GetCamera());
 	GuardEffect::SetCamera(cameraController_->GetCamera());
 
-	// カメラコントローラーに移動範囲をセット
-	Rect cameraArea = {11.0f, 11.0f, 6.3f, 93.2f};
-	cameraController_->SetMovableArea(cameraArea);
-
-	cameraController_->SetFixedCameraX(true, 11.0f);
-
 	// ゲーム開始時はまだ作らないのでnullptrを入れておく
 	deathParticles_ = nullptr;
 
-	// カメラのリセットを行う前に、マップチップからブロックとプレイヤーを生成・配置する
-	GenerateFieldObjects();
+	// Stage 1をTiledによる地続きマップのテスト入口にする。
+	// ファイルがない場合とStage 2/3は従来CSVへフォールバックする。
+	const std::string firstTiledRoom = "Resources/maps/rooms/room_01.tmj";
+	if (stageManager_->GetCurrentStageIndex() == 0 && std::filesystem::exists(firstTiledRoom))
+	{
+		isUsingTiledRooms_ = LoadTiledRoom(firstTiledRoom, "start");
+	}
+
+	if (!isUsingTiledRooms_)
+	{
+		const StageData& stageData = stageManager_->GetCurrentStageData();
+		const std::string stageFileName = "Resources/fields/" + stageData.name + ".csv";
+		mapChipField_->LoadMapChipCsv(stageFileName);
+		GenerateFieldObjects();
+		ConfigureCameraForCurrentMap();
+	}
 	
 	// 追従対象をセット
 	cameraController_->SetTarget(player_);
@@ -316,6 +325,11 @@ void GameScene::Update()
 	}
 
 	ImGui::Begin("Stage");
+	if (isUsingTiledRooms_)
+	{
+		ImGui::Text("Room: %s", currentRoom_.roomId.c_str());
+		ImGui::Text("Tile blocks: %zu", blockTransforms_.size());
+	}
 	// リロードボタン
 	if (ImGui::Button("Reload")) 
 	{
@@ -334,6 +348,10 @@ void GameScene::Update()
 
 	// フェードの更新処理
 	fade_->Update();
+	if (roomTransitionCooldown_ > 0)
+	{
+		--roomTransitionCooldown_;
+	}
 
 	// 鉱石スイッチで有効になる石橋の残り時間を更新する。
 	if (oreSwitchTimer_ > 0)
@@ -356,24 +374,22 @@ void GameScene::Update()
 	
 		// 自キャラの更新
 		player_->Update();
-		if (player_->IsJumpCharging())
+
+		// 8方向選択中のカーソル位置を更新
+		if (player_->IsRushAiming())
 		{
-			float rate = std::clamp(player_->GetJumpChargeRate(), 0.0f, 1.0f);
-			jumpGaugeFill_->SetSize(Vector2(232.0f * rate, 16.0f));
+			const float angle = player_->GetRushAngle();
 
-			float angle = player_->GetChargedJumpAngle();
+			// 方向表示の中心座標
+			const Vector2 center = {345.0f, 669.0f};
+			const float radius = 34.0f;
 
-			const Vector2 center = {130.0f, 765.0f};
-			const float radius = 80.0f;
-
-			float x = center.x + std::cos(angle) * radius;
-			float y = center.y - std::sin(angle) * radius;
+			// カーソルサイズが16×16なので、中心を合わせるため8を引く
+			const float x = center.x + std::cos(angle) * radius - 8.0f;
+			const float y = center.y - std::sin(angle) * radius - 8.0f;
 
 			jumpDirectionCursor_->SetPosition(Vector2(x, y));
 		}
-
-		
-
 
 		// 敵キャラの更新
 		for (BaseEnemy* enemy : enemies_)
@@ -384,22 +400,6 @@ void GameScene::Update()
 		for (BaseGimmick* gimmick : gimmicks_)
 		{
 			gimmick->Update();
-		}
-
-		// ブロックの更新
-		for (std::vector<WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) 
-		{
-			for (WorldTransform* worldTransformBlock : worldTransformBlockLine)
-			{
-				if (!worldTransformBlock)
-				{
-					continue;
-				}
-				worldTransformBlock->matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransformBlock->scale_, worldTransformBlock->rotation_, worldTransformBlock->translation_);
-
-				// 定数バッファに転送する
-				worldTransformBlock->TransferMatrix();
-			}
 		}
 
 		// 全ての当たり判定
@@ -414,6 +414,11 @@ void GameScene::Update()
 			}
 			return false;
 		});
+
+		if (isUsingTiledRooms_)
+		{
+			CheckRoomTransitions();
+		}
 
 		break;
 
@@ -464,22 +469,6 @@ void GameScene::Update()
 			deathParticles_->Update();
 		}
 
-		// ブロックの更新
-		for (std::vector<WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_)
-		{
-			for (WorldTransform* worldTransformBlock : worldTransformBlockLine)
-			{
-				if (!worldTransformBlock)
-				{
-					continue;
-				}
-				worldTransformBlock->matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransformBlock->scale_, worldTransformBlock->rotation_, worldTransformBlock->translation_);
-
-				// 定数バッファに転送する
-				worldTransformBlock->TransferMatrix();
-			}
-		}
-
 		break;
 
 	case Phase::kFadeOut:
@@ -494,19 +483,6 @@ void GameScene::Update()
 		for (BaseGimmick* gimmick : gimmicks_)
 		{
 			gimmick->Update();
-		}
-
-		// ブロックの更新
-		for (std::vector<WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
-			for (WorldTransform* worldTransformBlock : worldTransformBlockLine) {
-				if (!worldTransformBlock) {
-					continue;
-				}
-				worldTransformBlock->matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransformBlock->scale_, worldTransformBlock->rotation_, worldTransformBlock->translation_);
-
-				// 定数バッファに転送する
-				worldTransformBlock->TransferMatrix();
-			}
 		}
 
 		// 全ての当たり判定
@@ -555,44 +531,35 @@ void GameScene::Update()
 
 void GameScene::GenerateEnemy(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
 {
-	// マス目の座標を取得
-	Vector3 enemyPosition = mapChipField_->GetMapChipPositionByIndex(xIndex, yIndex);
+	const Vector3 position = mapChipField_->GetMapChipPositionByIndex(xIndex, yIndex);
+	const std::string enemyType = subID == 1 ? "ShieldEnemy" : subID == 4 ? "FlyingEnemy" : "WalkEnemy";
+	GenerateEnemyAtPosition(position, enemyType);
+}
 
-	switch (subID) 
+void GameScene::GenerateEnemyAtPosition(const Vector3& position, const std::string& enemyType)
+{
+	BaseEnemy* enemy = nullptr;
+	Model* model = nullptr;
+
+	if (enemyType == "ShieldEnemy")
 	{
-	case 0: {
-		// 歩行敵の生成
-		WalkEnemy* newWalkEnemy = new WalkEnemy();
-		// 通常の敵キャラの初期化
-		newWalkEnemy->Initialize(modelWalkEnemy_, cameraController_->GetCamera(), enemyPosition);
-		// 通常の敵にゲームシーンのポインタをセットする(自分自身を渡す)
-		newWalkEnemy->SetGameScene(this);
-		// リストに追加
-		enemies_.push_back(newWalkEnemy);
-		break;
+		enemy = new ShieldEnemy();
+		model = modelShieldEnemy_;
 	}
-	case 1: {
-		// 盾敵の生成
-		ShieldEnemy* newShieldEnemy = new ShieldEnemy();
-		// 盾持ちの敵キャラの初期化
-		newShieldEnemy->Initialize(modelShieldEnemy_, cameraController_->GetCamera(), enemyPosition);
-		// 盾持ちの敵にゲームシーンのポインタをセットする(自分自身を渡す)
-		newShieldEnemy->SetGameScene(this);
-		// リストに追加
-		enemies_.push_back(newShieldEnemy);
-		break;
+	else if (enemyType == "FlyingEnemy")
+	{
+		enemy = new FlyingEnemy();
+		model = modelFlyingEnemy_;
 	}
-	case 4: {
-		// 飛行敵の生成
-		FlyingEnemy* newFlyingEnemy = new FlyingEnemy();
-		newFlyingEnemy->Initialize(modelFlyingEnemy_, cameraController_->GetCamera(), enemyPosition);
-		newFlyingEnemy->SetGameScene(this);
-		enemies_.push_back(newFlyingEnemy);
-		break;
+	else
+	{
+		enemy = new WalkEnemy();
+		model = modelWalkEnemy_;
 	}
-	default:
-		break;
-	}
+
+	enemy->Initialize(model, cameraController_->GetCamera(), position);
+	enemy->SetGameScene(this);
+	enemies_.push_back(enemy);
 }
 
 void GameScene::GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
@@ -663,15 +630,7 @@ void GameScene::GenerateFieldObjects()
 	uint32_t numBlockVirtical = mapChipField_->GetNumBlockVirtical();
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
-	// 要素数を変更する
-	// 列数を設定(縦方向のブロック数)
-	worldTransformBlocks_.resize(numBlockVirtical);
-	for (uint32_t i = 0; i < numBlockVirtical; ++i) {
-		// 1列の要素数を設定(横方向のブロック数)
-		worldTransformBlocks_[i].resize(numBlockHorizontal);
-	}
-
-	// キューブの生成
+	// プレイヤー・敵・ギミックを生成する。ブロック描画は最後にまとめて生成する。
 	for (uint32_t i = 0; i < numBlockVirtical; ++i) {
 		for (uint32_t j = 0; j < numBlockHorizontal; ++j) {
 
@@ -682,13 +641,7 @@ void GameScene::GenerateFieldObjects()
 			switch (chipType) 
 			{
 			case MapChipType::kBlock:
-			{
-				WorldTransform* worldTransform = new WorldTransform();
-				worldTransform->Initialize();
-				worldTransformBlocks_[i][j] = worldTransform;
-				worldTransformBlocks_[i][j]->translation_ = mapChipField_->GetMapChipPositionByIndex(j, i);
 				break;
-			}
 			case MapChipType::kPlayer:
 			{
 				assert(player_ == nullptr && "自キャラを二重に配置しようとしています");
@@ -728,6 +681,226 @@ void GameScene::GenerateFieldObjects()
 		}
 	}
 
+	BuildBlockTransforms();
+
+}
+
+void GameScene::BuildBlockTransforms()
+{
+	for (WorldTransform* transform : blockTransforms_)
+	{
+		delete transform;
+	}
+	blockTransforms_.clear();
+
+	const uint32_t height = mapChipField_->GetNumBlockVirtical();
+	const uint32_t width = mapChipField_->GetNumBlockHorizontal();
+
+	for (uint32_t y = 0; y < height; ++y)
+	{
+		for (uint32_t x = 0; x < width; ++x)
+		{
+			if (mapChipField_->GetMapChipTypeByIndex(x, y) != MapChipType::kBlock)
+			{
+				continue;
+			}
+
+			WorldTransform* transform = new WorldTransform();
+			transform->Initialize();
+			transform->translation_ = mapChipField_->GetMapChipPositionByIndex(x, y);
+			transform->matWorld_ = MyMathUtility::MakeAffineMatrix(
+				transform->scale_, transform->rotation_, transform->translation_);
+			transform->TransferMatrix();
+			blockTransforms_.push_back(transform);
+		}
+	}
+}
+
+void GameScene::ClearRoomObjects()
+{
+	for (BaseEnemy* enemy : enemies_)
+	{
+		delete enemy;
+	}
+	enemies_.clear();
+
+	for (BaseGimmick* gimmick : gimmicks_)
+	{
+		delete gimmick;
+	}
+	gimmicks_.clear();
+
+	for (WorldTransform* transform : blockTransforms_)
+	{
+		delete transform;
+	}
+	blockTransforms_.clear();
+
+	for (BaseEffect* effect : effects_)
+	{
+		delete effect;
+	}
+	effects_.clear();
+
+	if (deathParticles_)
+	{
+		delete deathParticles_;
+		deathParticles_ = nullptr;
+	}
+}
+
+bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& spawnId)
+{
+	TiledRoomData loadedRoom;
+	try
+	{
+		loadedRoom = TiledRoomLoader::Load(roomPath);
+	}
+	catch (const std::exception&)
+	{
+		return false;
+	}
+
+	const TiledSpawnData* requestedSpawn = loadedRoom.FindSpawn(spawnId);
+	if (!requestedSpawn)
+	{
+		const auto firstPlayerSpawn = std::find_if(
+			loadedRoom.spawns.begin(), loadedRoom.spawns.end(), [](const TiledSpawnData& spawn) {
+				return spawn.className == "PlayerSpawn";
+			});
+		if (firstPlayerSpawn == loadedRoom.spawns.end())
+		{
+			return false;
+		}
+		requestedSpawn = &*firstPlayerSpawn;
+	}
+
+	const Vector3 playerPosition = requestedSpawn->position;
+	const std::string normalizedPath = std::filesystem::path(roomPath).lexically_normal().generic_string();
+
+	ClearRoomObjects();
+	currentRoom_ = std::move(loadedRoom);
+	currentRoomPath_ = normalizedPath;
+
+	mapChipField_->ResetMapChipData(currentRoom_.width, currentRoom_.height);
+	for (uint32_t y = 0; y < currentRoom_.height; ++y)
+	{
+		for (uint32_t x = 0; x < currentRoom_.width; ++x)
+		{
+			if (currentRoom_.IsSolid(x, y))
+			{
+				mapChipField_->SetMapChipTypeByIndex(x, y, MapChipType::kBlock);
+			}
+		}
+	}
+	BuildBlockTransforms();
+
+	if (!player_)
+	{
+		player_ = new Player();
+		player_->Initialize(modelPlayer_, modelAttackEffect_, cameraController_->GetCamera(), playerPosition);
+	}
+	else
+	{
+		player_->Respawn(playerPosition, false);
+	}
+	player_->SetMapChipField(mapChipField_);
+
+	if (!worldProgress_.HasCheckpoint())
+	{
+		worldProgress_.ActivateCheckpoint(currentRoomPath_, "initial", playerPosition);
+	}
+
+	for (const TiledSpawnData& spawn : currentRoom_.spawns)
+	{
+		if (spawn.className == "EnemySpawn")
+		{
+			GenerateEnemyAtPosition(spawn.position, spawn.enemyType);
+		}
+	}
+
+	for (const TiledCheckpointData& checkpointData : currentRoom_.checkpoints)
+	{
+		CheckpointTrigger* checkpoint = new CheckpointTrigger();
+		checkpoint->Initialize(modelBlock_, cameraController_->GetCamera(), checkpointData.position,
+			&worldProgress_, currentRoomPath_, checkpointData.id);
+		gimmicks_.push_back(checkpoint);
+	}
+
+	ConfigureCameraForCurrentMap();
+	roomTransitionCooldown_ = 20;
+	return true;
+}
+
+void GameScene::ConfigureCameraForCurrentMap()
+{
+	Camera* camera = cameraController_->GetCamera();
+	const float mapWidth = static_cast<float>(mapChipField_->GetNumBlockHorizontal());
+	const float mapHeight = static_cast<float>(mapChipField_->GetNumBlockVirtical());
+	const float tanHalfFov = std::tan(camera->fovAngleY * 0.5f);
+
+	// 小さな部屋ではカメラを近づけ、画面の縁がマップ外へ出ない画角にする。
+	constexpr float kDefaultDistance = 15.0f;
+	constexpr float kEdgeInset = 0.05f;
+	const float availableHalfWidth = (std::max)(mapWidth * 0.5f - kEdgeInset, 0.05f);
+	const float availableHalfHeight = (std::max)(mapHeight * 0.5f - kEdgeInset, 0.05f);
+	const float widthFitDistance = availableHalfWidth / (tanHalfFov * camera->aspectRatio);
+	const float heightFitDistance = availableHalfHeight / tanHalfFov;
+	const float cameraDistance = (std::min)(kDefaultDistance, (std::min)(widthFitDistance, heightFitDistance));
+	cameraController_->targetOffset_.z = -cameraDistance;
+
+	const float visibleHalfHeight = cameraDistance * tanHalfFov;
+	const float visibleHalfWidth = visibleHalfHeight * camera->aspectRatio;
+	const float mapLeft = -0.5f;
+	const float mapRight = mapWidth - 0.5f;
+	const float mapBottom = -0.5f;
+	const float mapTop = mapHeight - 0.5f;
+	const float cameraLeft = mapLeft + visibleHalfWidth;
+	const float cameraRight = mapRight - visibleHalfWidth;
+	const float cameraBottom = mapBottom + visibleHalfHeight;
+	const float cameraTop = mapTop - visibleHalfHeight;
+
+	cameraController_->SetMovableArea({cameraLeft, cameraRight, cameraBottom, cameraTop});
+	cameraController_->SetFixedCameraX(false);
+}
+
+void GameScene::CheckRoomTransitions()
+{
+	if (roomTransitionCooldown_ > 0 || phase_ != Phase::kPlay)
+	{
+		return;
+	}
+
+	const AABB playerBounds = player_->GetAABB();
+	for (const TiledRoomExitData& exit : currentRoom_.exits)
+	{
+		if (exit.targetRoom.empty() || !MyMathUtility::IsCollision(playerBounds, exit.bounds))
+		{
+			continue;
+		}
+
+		const std::filesystem::path targetPath =
+			std::filesystem::path(currentRoomPath_).parent_path() / exit.targetRoom;
+		if (LoadTiledRoom(targetPath.lexically_normal().generic_string(), exit.targetSpawn))
+		{
+			cameraController_->SetTarget(player_);
+			cameraController_->Reset();
+		}
+		return;
+	}
+}
+
+bool GameScene::IsVisible(const AABB& bounds, float margin) const
+{
+	const Camera* camera = cameraController_->GetCamera();
+	const Vector3& cameraPosition = camera->translation_;
+	const float distance = std::abs(cameraPosition.z);
+	const float visibleHalfHeight = distance * std::tan(camera->fovAngleY * 0.5f);
+	const float visibleHalfWidth = visibleHalfHeight * camera->aspectRatio;
+	return bounds.max.x >= cameraPosition.x - visibleHalfWidth - margin &&
+		bounds.min.x <= cameraPosition.x + visibleHalfWidth + margin &&
+		bounds.max.y >= cameraPosition.y - visibleHalfHeight - margin &&
+		bounds.min.y <= cameraPosition.y + visibleHalfHeight + margin;
 }
 
 // 全ての当たり判定を行う
@@ -738,7 +911,7 @@ void GameScene::CheckAllCollisions()
 		// 判定対象1と2の座標
 		AABB aabb1, aabb2;
 
-		// 通常時はプレイヤー本体、攻撃中は上方向攻撃のAABBを使う
+		// 通常時はプレイヤー本体、突進中はプレイヤー周囲のAABBを使う。
 		aabb1 = player_->IsAttack() ? player_->GetAttackAABB() : player_->GetAABB();
 
 		// 自キャラと敵キャラ全ての当たり判定
@@ -827,10 +1000,10 @@ void GameScene::ChangePhase()
 	{
 		// ゲームプレイフェーズの処理
 		
-		const float clearLineY = static_cast<float>(MapChipField::kNumBlockVirtical) - 0.5f;
+		const float clearLineY = static_cast<float>(mapChipField_->GetNumBlockVirtical()) - 0.5f;
 
-		// プレイヤー中心がステージ最上端を越えたらクリア
-		if (player_->GetWorldPosition().y > clearLineY)
+		// Tiledの地続きマップでは部屋出口を使うため、従来CSVだけ上端クリアを有効にする。
+		if (!isUsingTiledRooms_ && player_->GetWorldPosition().y > clearLineY)
 		{
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kGoal);
 			isCleared_ = true;
@@ -876,7 +1049,19 @@ void GameScene::ChangePhase()
 			else
 			{
 				// HPを保ったまま、最後のチェックポイントへ戻す。
-				player_->Respawn(respawnPosition_, false);
+				if (isUsingTiledRooms_ && worldProgress_.HasCheckpoint())
+				{
+					if (currentRoomPath_ != worldProgress_.GetCheckpointRoomPath())
+					{
+						LoadTiledRoom(worldProgress_.GetCheckpointRoomPath(), "");
+						cameraController_->SetTarget(player_);
+					}
+					player_->Respawn(worldProgress_.GetRespawnPosition(), false);
+				}
+				else
+				{
+					player_->Respawn(respawnPosition_, false);
+				}
 				SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerRespawn);
 				cameraController_->Reset();
 				fade_->Start(Fade::Status::FadeIn, kFadeDuration);
@@ -930,25 +1115,32 @@ void GameScene::Draw()
 
 	for (BaseEnemy* enemy : enemies_)
 	{
-		enemy->Draw();
+		if (IsVisible(enemy->GetAABB()))
+		{
+			enemy->Draw();
+		}
 	}
 
-	// ブロックの描画
-	for (std::vector<WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_)
+	// 1マスごとのブロックのうち、カメラ周辺だけを描画する。
+	for (WorldTransform* transform : blockTransforms_)
 	{
-		for (WorldTransform* worldTransformBlock : worldTransformBlockLine) 
+		const Vector3& position = transform->translation_;
+		const Vector3& scale = transform->scale_;
+		const AABB bounds = {
+			{position.x - scale.x * 0.5f, position.y - scale.y * 0.5f, position.z - 0.5f},
+			{position.x + scale.x * 0.5f, position.y + scale.y * 0.5f, position.z + 0.5f}};
+		if (IsVisible(bounds))
 		{
-			if (!worldTransformBlock)
-			{
-				continue;
-			}
-			modelBlock_->Draw(*worldTransformBlock, *cameraController_->GetCamera());
+			modelBlock_->Draw(*transform, *cameraController_->GetCamera());
 		}
 	}
 
 	for (BaseGimmick* gimmick : gimmicks_)
 	{
-		gimmick->Draw();
+		if (IsVisible(gimmick->GetAABB()))
+		{
+			gimmick->Draw();
+		}
 	}
 
 	if (phase_ == Phase::kFadeIn || phase_ == Phase::kPlay || phase_ == Phase::kStageClear)
@@ -981,10 +1173,8 @@ void GameScene::Draw()
 		DrawHud();
 	}
 
-	if (player_->IsJumpCharging()) {
+	if (player_->IsRushAiming()) {
 		Sprite::PreDraw();
-		jumpGaugeBack_->Draw();
-		jumpGaugeFill_->Draw();
 		jumpDirectionBack_->Draw();
 		jumpDirectionCursor_->Draw();
 		Sprite::PostDraw();
@@ -1016,7 +1206,10 @@ void GameScene::Draw()
 void GameScene::DrawHud()
 {
 	Sprite::PreDraw();
-	hudGuide_->Draw();
+	for (Sprite* character : hudGuideCharacters_)
+	{
+		character->Draw();
+	}
 	Sprite::PostDraw();
 }
 

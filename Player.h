@@ -65,8 +65,8 @@ public:
 	int32_t GetHp() const { return hp_; }
 	int32_t GetMaxHp() const { return kMaxHp; }
 
-	// 攻撃中かどうかを判定する関数
-	bool IsAttack() const { return behavior_ == Behavior::kAttack; }
+	// 従来攻撃、またはチャージジャンプの突進中かどうかを返す。
+	bool IsAttack() const { return behavior_ == Behavior::kAttack || isJumpRushing_; }
 
 	// タイトル画面等で向きを強制変更するためのセッターを追加
 	void SetRotationY(float rotationY)
@@ -79,7 +79,7 @@ public:
 	AABB GetAABB();
 	AABB GetPreviousAABB() const;
 
-	// 上方向攻撃用のAABBを取得
+	// 攻撃用のAABBを取得
 	AABB GetAttackAABB();
 	
 	// 衝突応答
@@ -109,12 +109,9 @@ public:
 	// 敵に攻撃を当てたとき、空中行動を回復する
 	void OnAttackHit();
 	
-	bool IsJumpCharging() const { return isJumpCharging_; }
+	bool IsRushAiming() const { return isRushAiming_; }
 
-	float GetJumpChargeRate() const { return static_cast<float>(jumpChargeFrame_) / kChargeMaxFrame; }
-
-
-	float GetChargedJumpAngle() const { return chargedJumpAngle_; }
+	float GetRushAngle() const { return rushAngle_; }
 
 	// ギミックからプレイヤーへ加える外力
 	void AddExternalVelocity(const KamataEngine::Vector3& velocity)
@@ -342,32 +339,20 @@ private:
 	// チャージジャンプ用の変数群
 
 	// ジャンプをチャージしているか
-	bool isJumpCharging_ = false;
+	bool isRushAiming_ = false;
 
-	// チャージ時間用のフレーム
-	uint32_t jumpChargeFrame_ = 0;
+	// Spaceを離した後の全周攻撃付き突進ジャンプ
+	bool isJumpRushing_ = false;
+	bool isJumpRushEnding_ = false;
+	uint32_t jumpRushFrame_ = 0;
+	static inline const float kJumpRushSpeed = 0.6f;
+	static inline const uint32_t kJumpRushFrame = 9;
 
-	// チャージ段階を管理するフレーム
-	static inline const uint32_t kChargeLevel1Frame = 15;
-	static inline const uint32_t kChargeLevel2Frame = 30;
-	static inline const uint32_t kChargeMaxFrame = 45;
-
-	// ジャンプの高さ
-	static inline const float kJumpVelocityLow = 0.16f;
-	static inline const float kJumpVelocityMiddle = 0.24f;
-	static inline const float kJumpVelocityHigh = 0.32f;
-
-	// チャージジャンプ時の横方向初速
-	static inline const float kChargedJumpHorizontalSpeed = 0.16f;
 
 	// ラジアンで保持する。初期値は真上（90度）
-	float chargedJumpAngle_ = std::numbers::pi_v<float> / 2.0f;
+	float rushAngle_ = std::numbers::pi_v<float> / 2.0f;
 
-	// 1フレームあたりの方向変更量（2度）
-	static inline const float kJumpAngleSpeed = std::numbers::pi_v<float> / 180.0f * 2.0f;
-
-	// 水平すぎる発射を避けるため、20度～160度に制限
-	static inline const float kJumpAngleMin = std::numbers::pi_v<float> / 180.0f * 20.0f;
-	static inline const float kJumpAngleMax = std::numbers::pi_v<float> / 180.0f * 160.0f;
+	// 突進中はプレイヤーの周囲全体を攻撃範囲にする。
+	static inline const float kRushAttackSize = 1.6f;
 
 };

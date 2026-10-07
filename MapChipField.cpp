@@ -57,6 +57,17 @@ void MapChipField::ResetMapChipData(uint32_t width, uint32_t height)
 	mapChipData_.data.assign(numBlockVertical_, std::vector<MapChipDataUnit>(numBlockHorizontal_, MapChipDataUnit{}));
 }
 
+void MapChipField::SetMapChipTypeByIndex(int32_t xIndex, int32_t yIndex, MapChipType type, uint8_t subID)
+{
+	if (!IsInBounds(xIndex, yIndex))
+	{
+		return;
+	}
+
+	mapChipData_.data[yIndex][xIndex].type = type;
+	mapChipData_.data[yIndex][xIndex].subID = subID;
+}
+
 void MapChipField::LoadMapChipCsv(const std::string& filePath)
 {
 	
@@ -168,23 +179,26 @@ uint8_t MapChipField::GetMapChipSubIDByIndex(int32_t xIndex, int32_t yIndex) con
 }
 
 // 指定座標がマップチップの何番の位置にあるのかを計算する関数
-IndexSet MapChipField::GetMapChipIndexSetByPosition(const Vector3& position)
-{
-	IndexSet indexSet = {};
+IndexSet MapChipField::GetMapChipIndexSetByPosition(const Vector3& position) const {
+	IndexSet indexSet{};
+
 	indexSet.xIndex = static_cast<int32_t>(std::floor((position.x + kBlockWidth / 2.0f) / kBlockWidth));
+
 	const int32_t yIndexFromBottom = static_cast<int32_t>(std::floor((position.y + kBlockHeight / 2.0f) / kBlockHeight));
-	indexSet.yIndex = static_cast<int32_t>(kNumBlockVirtical) - 1 - yIndexFromBottom;
+
+	indexSet.yIndex = static_cast<int32_t>(numBlockVertical_) - 1 - yIndexFromBottom;
+
 	return indexSet;
 }
 
 // 横、縦のインデックス（番号）を指定してその位置のマップチップのワールド座標を取得する関数
-Vector3 MapChipField::GetMapChipPositionByIndex(int32_t xIndex, int32_t yIndex)
+Vector3 MapChipField::GetMapChipPositionByIndex(int32_t xIndex, int32_t yIndex) const
 {
-	return Vector3(kBlockWidth * static_cast<float>(xIndex), kBlockHeight * static_cast<float>(static_cast<int32_t>(kNumBlockVirtical) - 1 - yIndex), 0);
+	return Vector3{kBlockWidth * static_cast<float>(xIndex), kBlockHeight * static_cast<float>(static_cast<int32_t>(numBlockVertical_) - 1 - yIndex), 0.0f};
 }
 
 // マップチップ番号を指定して、指定ブロックの全方向の境界の座標を得る関数
-MapChipField::Rect MapChipField::GetRectByIndex(int32_t xIndex, int32_t yIndex)
+MapChipField::Rect MapChipField::GetRectByIndex(int32_t xIndex, int32_t yIndex) const
 {
 	// 指定ブロックの中心座標を取得する
 	Vector3 center = GetMapChipPositionByIndex(xIndex, yIndex);

@@ -34,19 +34,21 @@ void CameraController::Update() {
 	targetCoordinate_.y = targetWorldTransform.translation_.y + targetOffset_.y + velocityBiasY;
 	targetCoordinate_.z = targetWorldTransform.translation_.z + targetOffset_.z;
 
-	// Xは補間しない
-	camera_.translation_.x = isFixedCameraX_ ? fixedCameraX_ : targetWorldTransform.translation_.x + targetOffset_.x;
+	// 横長の部屋も追従できるよう、X方向も補間して追従する。
+	camera_.translation_.x = isFixedCameraX_
+		? fixedCameraX_
+		: MyMathUtility::Lerp(camera_.translation_.x, targetCoordinate_.x, kInterpolationRate);
 	camera_.translation_.y = MyMathUtility::Lerp(camera_.translation_.y, targetCoordinate_.y, kInterpolationRate);
 	camera_.translation_.z = MyMathUtility::Lerp(camera_.translation_.z, targetCoordinate_.z, kInterpolationRate);
 
 	// 追従対象が画面外に出ないように補正
-	/*camera_.translation_.x = (std::max)(camera_.translation_.x, targetWorldTransform.translation_.x + margin_.left);
-	camera_.translation_.x = (std::min)(camera_.translation_.x, targetWorldTransform.translation_.x + margin_.right);*/
+	camera_.translation_.x = (std::max)(camera_.translation_.x, targetWorldTransform.translation_.x + margin_.left);
+	camera_.translation_.x = (std::min)(camera_.translation_.x, targetWorldTransform.translation_.x + margin_.right);
 	camera_.translation_.y = (std::max)(camera_.translation_.y, targetWorldTransform.translation_.y + margin_.bottom);
 	camera_.translation_.y = (std::min)(camera_.translation_.y, targetWorldTransform.translation_.y + margin_.top);
 
 	// 移動範囲の制限 (クランプ)
-	/*camera_.translation_.x = std::clamp(camera_.translation_.x, movableArea_.left, movableArea_.right);*/
+	camera_.translation_.x = std::clamp(camera_.translation_.x, movableArea_.left, movableArea_.right);
 	camera_.translation_.y = std::clamp(camera_.translation_.y, movableArea_.bottom, movableArea_.top);
 
 	// 行列を更新する
@@ -64,7 +66,7 @@ void CameraController::Reset() {
 	camera_.translation_.z = targetWorldTransform.translation_.z + targetOffset_.z;
 
 	// 移動範囲の制限 (クランプ)
-	
+	camera_.translation_.x = std::clamp(camera_.translation_.x, movableArea_.left, movableArea_.right);
 	camera_.translation_.y = std::clamp(camera_.translation_.y, movableArea_.bottom, movableArea_.top);
 
 }

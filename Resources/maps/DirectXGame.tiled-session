@@ -1,0 +1,40 @@
+{
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "rooms/room_01.tmj": {
+            "expandedObjectLayers": [
+                3,
+                2,
+                4
+            ],
+            "scale": 1,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 862,
+                "y": 210
+            }
+        },
+        "rooms/room_02.tmj": {
+            "expandedObjectLayers": [
+                2,
+                4
+            ],
+            "scale": 1,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 222,
+                "y": 210
+            }
+        }
+    },
+    "loadedWorlds": [
+        "C:/learningKamataEngine/firstProductionPersonal/DirectXGame/Resources/maps/connected-world.world"
+    ],
+    "openFiles": [
+    ],
+    "project": "DirectXGame.tiled-project",
+    "recentFiles": [
+    ]
+}

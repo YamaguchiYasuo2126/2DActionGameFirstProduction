@@ -1,0 +1,140 @@
+{ "compressionlevel":-1,
+ "height":12,
+ "infinite":false,
+ "layers":[
+        {
+         "data":[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+         "height":12,
+         "id":1,
+         "name":"CollisionSolid",
+         "opacity":1,
+         "type":"tilelayer",
+         "visible":true,
+         "width":20,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":2,
+         "name":"Spawns",
+         "objects":[
+                {
+                 "height":0,
+                 "id":1,
+                 "name":"start",
+                 "point":true,
+                 "rotation":0,
+                 "type":"PlayerSpawn",
+                 "visible":true,
+                 "width":0,
+                 "x":80,
+                 "y":336
+                }, 
+                {
+                 "height":0,
+                 "id":2,
+                 "name":"from_room_02",
+                 "point":true,
+                 "rotation":0,
+                 "type":"PlayerSpawn",
+                 "visible":true,
+                 "width":0,
+                 "x":592,
+                 "y":336
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":3,
+         "name":"Transitions",
+         "objects":[
+                {
+                 "height":64,
+                 "id":5,
+                 "name":"to_room_02",
+                 "properties":[
+                        {
+                         "name":"targetRoom",
+                         "type":"string",
+                         "value":"room_02.tmj"
+                        }, 
+                        {
+                         "name":"targetSpawn",
+                         "type":"string",
+                         "value":"from_room_01"
+                        }],
+                 "rotation":0,
+                 "type":"RoomExit",
+                 "visible":true,
+                 "width":32,
+                 "x":608,
+                 "y":288
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":4,
+         "name":"Checkpoints",
+         "objects":[
+                {
+                 "height":0,
+                 "id":6,
+                 "name":"room_01_mid",
+                 "point":true,
+                 "rotation":0,
+                 "type":"Checkpoint",
+                 "visible":true,
+                 "width":0,
+                 "x":400,
+                 "y":336
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }],
+ "nextlayerid":5,
+ "nextobjectid":7,
+ "orientation":"orthogonal",
+ "properties":[
+        {
+         "name":"roomId",
+         "type":"string",
+         "value":"room_01"
+        }],
+ "renderorder":"right-down",
+ "tiledversion":"1.11.2",
+ "tileheight":32,
+ "tilesets":[
+        {
+         "firstgid":1,
+         "source":"..\/tilesets\/gameplay.tsj"
+        }],
+ "tilewidth":32,
+ "type":"map",
+ "version":"1.11",
+ "width":20
+}

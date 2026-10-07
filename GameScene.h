@@ -11,6 +11,10 @@
 #include "DeathParticles.h"
 #include "Fade.h"
 #include "BaseGimmick.h"
+#include "TiledRoom.h"
+#include "WorldProgress.h"
+
+#include <string>
 
 class StageManager;
 
@@ -136,15 +140,9 @@ private:
 	// 天球の3Dモデルデータ
 	KamataEngine::Model* modelSkydome_ = nullptr;
 
-	// チャージジャンプ用のスプライト
-	KamataEngine::Sprite* jumpGaugeBack_ = nullptr;
-	KamataEngine::Sprite* jumpGaugeFill_ = nullptr;
-
 	KamataEngine::Sprite* jumpDirectionBack_ = nullptr;
 	KamataEngine::Sprite* jumpDirectionCursor_ = nullptr;
-
-	// リリース環境でも表示する操作説明HUD
-	KamataEngine::Sprite* hudGuide_ = nullptr;
+	std::vector<KamataEngine::Sprite*> hudGuideCharacters_;
 
 	// ゲームオーバーの選択画面
 	KamataEngine::Sprite* gameOverOverlay_ = nullptr;
@@ -162,11 +160,8 @@ private:
 	// ワールドトランスフォーム
 	KamataEngine::WorldTransform worldTransform_;
 
-	// ブロック用のワールドトランスフォーム
-	std::vector<std::vector<KamataEngine::WorldTransform*>> worldTransformBlocks_;
-
-	//// カメラ
-	//KamataEngine::Camera camera_;
+	// 1マスごとのブロック描画用トランスフォーム
+	std::vector<KamataEngine::WorldTransform*> blockTransforms_;
 
 	// デバッグカメラ有効
 	bool isDebugCameraActive_ = false;
@@ -174,12 +169,26 @@ private:
 	KamataEngine::DebugCamera* debugCamera_ = nullptr;
 
 	// マップチップフィールド
-	MapChipField* mapChipField_;
+	MapChipField* mapChipField_ = nullptr;
+
+	// Tiledの部屋と、部屋をまたいで保持する進行状態
+	TiledRoomData currentRoom_;
+	WorldProgress worldProgress_;
+	std::string currentRoomPath_;
+	bool isUsingTiledRooms_ = false;
+	uint32_t roomTransitionCooldown_ = 0;
 	
 	void GenerateFieldObjects();
+	void BuildBlockTransforms();
+	void ClearRoomObjects();
+	bool LoadTiledRoom(const std::string& roomPath, const std::string& spawnId);
+	void ConfigureCameraForCurrentMap();
+	void CheckRoomTransitions();
+	bool IsVisible(const AABB& bounds, float margin = 2.0f) const;
 
 	// 敵生成用の関数を追加
 	void GenerateEnemy(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
+	void GenerateEnemyAtPosition(const KamataEngine::Vector3& position, const std::string& enemyType);
 	void GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
 	void GenerateCheckpoint(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
 

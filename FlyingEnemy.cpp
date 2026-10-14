@@ -1,4 +1,5 @@
 #include "FlyingEnemy.h"
+#include "GameTime.h"
 
 #include <cmath>
 
@@ -11,7 +12,7 @@ void FlyingEnemy::Initialize(Model* model, Camera* camera, const Vector3& positi
 }
 
 void FlyingEnemy::BehaviorWalkUpdate() {
-	flightTimer_ += 1.0f / 60.0f;
+	flightTimer_ += GameTime::GetDeltaSeconds();
 
 	worldTransform_.translation_ = startPosition_;
 	worldTransform_.translation_.x += std::sin(flightTimer_ * 1.7f) * 1.6f;

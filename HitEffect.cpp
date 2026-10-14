@@ -6,6 +6,7 @@
 #include <random> 
 #include <numbers>
 #include "EasingUtility.h"
+#include "GameTime.h"
 #include <algorithm>
 
 using namespace KamataEngine;
@@ -56,7 +57,7 @@ void HitEffect::Initialize(const Vector3& position)
 void HitEffect::Update() 
 {
 	// 1フレーム分の時間をカウントアップ
-	counter_ += 1.0f / 60.0f;
+	counter_ += GameTime::GetDeltaSeconds();
 
 	// フェーズごとの処理
 	switch (phase_) 

@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include "Fade.h"
+#include "GameTime.h"
 #include <algorithm>
 #include <cassert>
 
@@ -25,7 +26,7 @@ void Fade::Update()
 	case Status::FadeIn:
 		// フェードイン中の更新処理
 		// 1フレーム分の秒数をカウントアップ
-		counter_ += 1.0f / 60.0f;
+		counter_ += GameTime::GetDeltaSeconds();
 		// フェード継続時間に達したら打ち止め
 		if (counter_ >= duration_) 
 		{
@@ -37,7 +38,7 @@ void Fade::Update()
 	case Status::FadeOut:
 		// フェードアウト中の更新処理
 		// 1フレーム分の秒数をカウントアップ
-		counter_ += 1.0f / 60.0f;
+		counter_ += GameTime::GetDeltaSeconds();
 		// フェード継続時間に達したら打ち止め
 		if (counter_ >= duration_)
 		{

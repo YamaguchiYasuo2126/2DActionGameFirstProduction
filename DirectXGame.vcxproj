@@ -307,6 +307,7 @@
     <ClInclude Include="WalkEnemy.h" />
     <ClInclude Include="Fade.h" />
 	<ClInclude Include="GamePadInput.h" />
+	<ClInclude Include="GameTime.h" />
     <ClInclude Include="GameScene.h" />
     <ClInclude Include="GuardEffect.h" />
     <ClInclude Include="HitEffect.h" />

@@ -1,6 +1,7 @@
 #include "GuardEffect.h"
 #define _USE_MATH_DEFINES
 #include "EasingUtility.h"
+#include "GameTime.h"
 #include "MyMathUtility.h"
 #include <algorithm>
 #include <cassert>
@@ -36,7 +37,7 @@ void GuardEffect::Initialize(const Vector3& position) {
 
 void GuardEffect::Update() {
 	// 1フレーム分の時間をカウントアップ
-	counter_ += 1.0f / 60.0f;
+	counter_ += GameTime::GetDeltaSeconds();
 
 	// フェーズごとの処理
 	switch (phase_)

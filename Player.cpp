@@ -5,6 +5,7 @@
 #include "MyMathUtility.h"
 #include "GamePadInput.h"
 #include "SoundManager.h"
+#include "GameTime.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -47,11 +48,12 @@ void Player::Update()
 	previousPosition_ = worldTransform_.translation_;
 	if (vineDetachCooldown_ > 0)
 	{
-		--vineDetachCooldown_;
+		vineDetachCooldown_ = (std::max)(0.0f, vineDetachCooldown_ - GameTime::GetDeltaFrames());
 	}
+
 	if (damageInvincibleTimer_ > 0)
 	{
-		--damageInvincibleTimer_;
+		damageInvincibleTimer_ = (std::max)(0.0f, damageInvincibleTimer_ - GameTime::GetDeltaFrames());
 	}
 
 	if (isHanging_)
@@ -133,8 +135,12 @@ void Player::MoveInput()
 	const bool isLeftPushed = input->PushKey(DIK_LEFT) || input->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
 	const bool isJumpPushed = input->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
 	const bool isJumpTriggered = input->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
+	const bool isNormalJumpTriggered = input->TriggerKey(DIK_W) || input->TriggerKey(DIK_UP);
+	const float deltaFrames = GameTime::GetDeltaFrames();
+	const float moveDamping = GameTime::GetDampingFactor(1.0f - kAttenuation);
 
-	auto beginTurn = [this](LRDirection direction) {
+	auto beginTurn = [this](LRDirection direction)
+		{
 		if (lrDirection_ == direction)
 		{
 			return;
@@ -144,35 +150,59 @@ void Player::MoveInput()
 		turnTimer_ = kTimeTurn;
 	};
 
-	// 通常移動は矢印キーとA/Dのどちらでも行える。
-	// チャージ中と突進中は方向入力を通常移動に使わない。
-	if (!isRushAiming_ && !isJumpRushing_)
+
+	// 方向選択と突進中は方向入力を通常移動に使わない。
+	if (!isRushAiming_ && !isJumpRushing_ && !isJumpTriggered)
 	{
 		if (isRightPushed != isLeftPushed)
 		{
+			const float momentumDamping = GameTime::GetDampingFactor(kRushMomentumDamping);
+
 			if (isRightPushed)
 			{
-				if (velocity_.x < 0.0f)
+				if (velocity_.x > kLimitRunSpeed)
 				{
-					velocity_.x *= (1.0f - kAttenuation);
+					// 右向きの超過速度は急停止させず、徐々に通常速度へ戻す。
+					velocity_.x *= momentumDamping;
 				}
-				velocity_.x += kAcceleration;
+				else
+				{
+					// 左向きの速度が残っている場合は先に減速する。
+					if (velocity_.x < 0.0f) {
+						velocity_.x *= moveDamping;
+					}
+
+					velocity_.x += kAcceleration * deltaFrames;
+					velocity_.x = (std::min)(velocity_.x, kLimitRunSpeed);
+				}
+
 				beginTurn(LRDirection::kRight);
-			}
+			} 
 			else
 			{
-				if (velocity_.x > 0.0f)
+				if (velocity_.x < -kLimitRunSpeed)
 				{
-					velocity_.x *= (1.0f - kAttenuation);
+					// 左向きの超過速度を徐々に通常速度へ戻す。
+					velocity_.x *= momentumDamping;
 				}
-				velocity_.x -= kAcceleration;
+				else
+				{
+					// 右向きの速度が残っている場合は先に減速する。
+					if (velocity_.x > 0.0f)
+					{
+						velocity_.x *= moveDamping;
+					}
+
+					velocity_.x -= kAcceleration * deltaFrames;
+					velocity_.x = (std::max)(velocity_.x, -kLimitRunSpeed);
+				}
+
 				beginTurn(LRDirection::kLeft);
 			}
-			velocity_.x = std::clamp(velocity_.x, -kLimitRunSpeed, kLimitRunSpeed);
-		}
-		else
+		} 
+		else 
 		{
-			velocity_.x *= (1.0f - kAttenuation);
+			velocity_.x *= moveDamping;
 		}
 	}
 
@@ -181,19 +211,46 @@ void Player::MoveInput()
 		onGround_ = false;
 	}
 
-	// Spaceを押した瞬間は真上を既定方向としてチャージを開始する。
-	if (!isRushAiming_ && !isJumpRushing_ && (onGround_ || canAirJump_) && isJumpTriggered)
+	// Spaceを押していないときのW/↑は、方向選択のない即時ジャンプとする。
+	if (!isJumpPushed && !isRushAiming_ && !isJumpRushing_ && onGround_ && isNormalJumpTriggered)
 	{
+		velocity_.y = kNormalJumpSpeed;
+		onGround_ = false;
+		SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
+	}
+
+	// Spaceを押した瞬間は真上を既定方向として方向選択を開始する。
+	if (!isRushAiming_ && !isJumpRushing_ && (onGround_ || canAirRush_) && isJumpTriggered)
+	{
+
+		// 空中から方向選択を開始した場合は、この時点で使用回数を消費する。
+		// 地上からの場合は、実際に突進を発動した時点で消費する。
+		if (!onGround_)
+		{
+			canAirRush_ = false;
+		}
+		else
+		{
+			// 地上での方向選択だけは、狙っている間に歩き続けないよう横速度を止める。
+			velocity_.x = 0.0f;
+		}
 		isRushAiming_ = true;
+		rushAimElapsedSeconds_ = 0.0f;
 		rushAngle_ = std::numbers::pi_v<float> / 2.0f;
-		velocity_.x = 0.0f;
 	}
 
 	if (isRushAiming_)
 	{
-		if (isJumpPushed)
+		// スローモーションの影響を受けない実時間で数える。
+		rushAimElapsedSeconds_ += GameTime::GetUnscaledDeltaSeconds();
+
+		const bool isRushAimTimeExpired = rushAimElapsedSeconds_ >= kRushAimMaxSeconds;
+
+		// Spaceを離すか、制限時間が経過したら発動する。
+		const bool shouldLaunchRush = !isJumpPushed || isRushAimTimeExpired;
+
+		if (!shouldLaunchRush) 
 		{
-			
 
 			// WASD（または矢印キー）の縦横各-1/0/1を合成し、8方向に固定する。
 			int32_t directionX = 0;
@@ -231,16 +288,10 @@ void Player::MoveInput()
 				}
 			}
 
-			// 空中での再チャージ中はわずかに落下させる。
-			if (!onGround_)
-			{
-				velocity_.y = -0.01f;
-			}
 		}
 		else
 		{
-			
-
+			const bool isGroundRush = onGround_;
 			float directionX = std::cos(rushAngle_);
 			float directionY = std::sin(rushAngle_);
 			// sin(pi) などの誤差で水平突進が傾かないよう、ほぼ0の成分を固定する。
@@ -254,9 +305,17 @@ void Player::MoveInput()
 			}
 			velocity_.x = directionX * kJumpRushSpeed;
 			velocity_.y = directionY * kJumpRushSpeed;
+			if (isGroundRush)
+			{
+				// 水平方向の突進でも床へ接触したままにならないよう、発動時だけ少し浮かせる。
+				worldTransform_.translation_.y += kGroundRushLift;
+			}
 			onGround_ = false;
+			// 地上発動も空中分を消費し、着地または攻撃成功まで連続発動を禁止する。
+			canAirRush_ = false;
 
 			isRushAiming_ = false;
+			rushAimElapsedSeconds_ = 0.0f;
 			isJumpRushing_ = true;
 			isJumpRushEnding_ = false;
 			isAttackEffectVisible_ = true;
@@ -265,10 +324,11 @@ void Player::MoveInput()
 		}
 	}
 
-	// 突進中は全方向の移動量を揃えるため重力を加えない。
-	if (!onGround_ && !isRushAiming_ && !isJumpRushing_)
+	// 方向選択中も、開始前の慣性と重力に従ってスローモーションで動き続ける。
+	// 突進中だけは全方向の移動量を揃えるため重力を加えない。
+	if (!onGround_ && !isJumpRushing_)
 	{
-		velocity_.y -= kGravityAcceleration;
+		velocity_.y -= kGravityAcceleration * deltaFrames;
 		velocity_.y = (std::max)(velocity_.y, -kLimitFallSpeed);
 	}
 }
@@ -320,24 +380,25 @@ void Player::LaunchFromFountain(float launchVelocity)
 
 void Player::UpdateHanging()
 {
+	const float deltaFrames = GameTime::GetDeltaFrames();
 	const bool isLeftPushed = Input::GetInstance()->PushKey(DIK_LEFT) || Input::GetInstance()->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
 	const bool isRightPushed = Input::GetInstance()->PushKey(DIK_RIGHT) || Input::GetInstance()->PushKey(DIK_D) || GamePadInput::IsRightPushed();
 	const bool isJumpTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
 
 	if (isLeftPushed)
 	{
-		vineAngularVelocity_ -= kVineSwingAcceleration;
+		vineAngularVelocity_ -= kVineSwingAcceleration * deltaFrames;
 	}
 	if (isRightPushed)
 	{
-		vineAngularVelocity_ += kVineSwingAcceleration;
+		vineAngularVelocity_ += kVineSwingAcceleration * deltaFrames;
 	}
 
 	// 振り子の重力と空気抵抗
-	vineAngularVelocity_ -= std::sin(vineAngle_) * kVineGravity;
-	vineAngularVelocity_ *= 0.99f;
+	vineAngularVelocity_ -= std::sin(vineAngle_) * kVineGravity * deltaFrames;
+	vineAngularVelocity_ *= GameTime::GetDampingFactor(0.99f);
 	vineAngularVelocity_ = std::clamp(vineAngularVelocity_, -kVineMaxAngularVelocity, kVineMaxAngularVelocity);
-	vineAngle_ += vineAngularVelocity_;
+	vineAngle_ += vineAngularVelocity_ * deltaFrames;
 	vineAngle_ = std::clamp(vineAngle_, -1.2f, 1.2f);
 
 	worldTransform_.translation_.x = vineAnchorPosition_.x + std::sin(vineAngle_) * kVineLength;
@@ -453,7 +514,8 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 				}
 			}
 		}
-	} else if (info.move.x < 0.0f)
+	}
+	else if (info.move.x < 0.0f)
 	{
 		const float currentLeft = worldTransform_.translation_.x - halfWidth;
 		const float targetLeft = currentLeft + info.move.x;
@@ -484,7 +546,8 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	// X 軸の解決後の位置を用いて Y 軸方向の衝突を解決する。
 	const float playerLeft = worldTransform_.translation_.x + info.move.x - halfWidth;
 	const float playerRight = worldTransform_.translation_.x + info.move.x + halfWidth;
-	if (info.move.y > 0.0f) {
+	if (info.move.y > 0.0f)
+	{
 		const float currentTop = worldTransform_.translation_.y + halfHeight;
 		const float targetTop = currentTop + info.move.y;
 		const TileRange range = makeTileRange(playerLeft, playerRight, currentTop - halfHeight * 2.0f, targetTop);
@@ -508,7 +571,8 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 				}
 			}
 		}
-	} else if (info.move.y < 0.0f)
+	}
+	else if (info.move.y < 0.0f)
 	{
 		const float currentBottom = worldTransform_.translation_.y - halfHeight;
 		const float targetBottom = currentBottom + info.move.y;
@@ -724,7 +788,8 @@ void Player::CheckMapCollisionRight(CollisionMapInfo& info)
 	}
 
 	// ブロックにヒット？
-	if (hit) {
+	if (hit)
+	{
 
 		// 移動前の自キャラ右端座標（中心の右）のインデックスを取得
 		IndexSet indexSetNow = mapChipField_->GetMapChipIndexSetByPosition(worldTransform_.translation_ + Vector3{+kWidth / 2.0f, 0.0f, 0.0f});
@@ -792,7 +857,8 @@ void Player::CheckMapCollisionLeft(CollisionMapInfo& info)
 	}
 
 	// ブロックにヒット？
-	if (hit) {
+	if (hit)
+	{
 		// 移動前の自キャラ左端座標（中心の左）のインデックスを取得
 		IndexSet indexSetNow = mapChipField_->GetMapChipIndexSetByPosition(worldTransform_.translation_ + Vector3{-kWidth / 2.0f, 0.0f, 0.0f});
 
@@ -826,7 +892,8 @@ void Player::JudgmentResultReflectionMove(const CollisionMapInfo& info)
 // 天井に接触している場合の処理
 void Player::ContactToCeiling(const CollisionMapInfo& info) 
 {
-	if (info.isCeiling) {
+	if (info.isCeiling)
+	{
 		velocity_.y = 0.0f;
 	}
 }
@@ -835,8 +902,9 @@ void Player::ContactToCeiling(const CollisionMapInfo& info)
 void Player::ContactToWall(const CollisionMapInfo& info)
 {
 	// 壁接触による減速
-	if (info.hitWall) {
-		velocity_.x *= (1.0f - kAttenuationWall);
+	if (info.hitWall)
+	{
+		velocity_.x *= GameTime::GetDampingFactor(1.0f - kAttenuationWall);
 	}
 }
 
@@ -844,7 +912,8 @@ void Player::ContactToWall(const CollisionMapInfo& info)
 void Player::ContactToGroundStateSwitch(const CollisionMapInfo& info)
 {
 	// 接地している状態のとき（足場から外れて落下するかどうかのチェック）
-	if (onGround_) {
+	if (onGround_)
+	{
 		bool hit = false;
 		MapChipType mapChipType;
 
@@ -880,11 +949,12 @@ void Player::ContactToGroundStateSwitch(const CollisionMapInfo& info)
 	else if (info.isLanding)
 	{
 		// 摩擦で横方向速度が減衰する
-		velocity_.x *= (1.0f - kAttenuation);
+		velocity_.x *= GameTime::GetDampingFactor(1.0f - kAttenuation);
 		// 下方向速度をリセット
 		velocity_.y = 0.0f;
 		// 接地状態に移行
 		onGround_ = true;
+		canAirRush_ = true;
 	}
 }
 
@@ -903,7 +973,6 @@ void Player::UpdateMatrix()
 
 // ワールド座標を取得
 Vector3 Player::GetWorldPosition()
-
 {
 	// ワールド座標を入れる変数
 	Vector3 worldPos;
@@ -924,6 +993,7 @@ void Player::LandOnGimmick(float topY, float horizontalMove)
 
 	velocity_.y = 0.0f;
 	onGround_ = true;
+	canAirRush_ = true;
 
 	UpdateMatrix();
 }
@@ -937,6 +1007,8 @@ void Player::BounceOnGimmick(float topY, float bounceVelocity) {
 
 	// 空中状態へ切り替える
 	onGround_ = false;
+	// 跳ねる足場へ触れた場合も、着地として空中突進を回復する。
+	canAirRush_ = true;
 
 	UpdateMatrix();
 }
@@ -979,6 +1051,7 @@ Player::GimmickHitSide Player::ResolveSolidGimmickCollision(const AABB& gimmickA
 		velocity_.y <= 0.0f &&
 		currentAABB.min.y >= gimmickAABB.max.y - kEpsilon &&
 		currentAABB.min.y <= gimmickAABB.max.y + kSupportEpsilon;
+
 	if (isStandingOnTop)
 	{
 		LandOnGimmick(gimmickAABB.max.y, horizontalMove);
@@ -1140,14 +1213,17 @@ void Player::Respawn(const Vector3& position, bool restoreHp)
 	worldTransform_.translation_ = position;
 	previousPosition_ = position;
 	velocity_ = {};
+
 	if (restoreHp)
 	{
 		hp_ = kMaxHp;
 	}
+
 	isDead_ = false;
 	isRespawnRequested_ = false;
 	damageInvincibleTimer_ = kDamageInvincibleFrames;
 	onGround_ = false;
+	canAirRush_ = true;
 	isHanging_ = false;
 	vineDetachCooldown_ = 0;
 	isRushAiming_ = false;
@@ -1169,7 +1245,7 @@ void Player::BehaviorRootUpdate()
 
 	if (onGround_) {
 		isAttackedInAir_ = false;
-		canAirJump_ = false;
+		canAirRush_ = true;
 	}
 
 	// Spaceは突進ジャンプ専用。ゲームパッドXの従来攻撃だけ互換操作として残す。
@@ -1182,7 +1258,8 @@ void Player::BehaviorRootUpdate()
 			// 攻撃ビヘイビアをリクエスト
 			behaviorRequest_ = Behavior::kAttack;
 			// もし空中で攻撃したならフラグをtrueにする
-			if (!onGround_) {
+			if (!onGround_)
+			{
 				isAttackedInAir_ = true;
 			}
 		}
@@ -1194,7 +1271,7 @@ void Player::BehaviorRootUpdate()
 	// 衝突情報を初期化
 	CollisionMapInfo collisionMapInfo;
 	// 移動量に速度の値をコピー
-	collisionMapInfo.move = velocity_;
+	collisionMapInfo.move = MyMathUtility::Multiply(GameTime::GetDeltaFrames(), velocity_);
 
 	// マップ衝突チェック
 	CheckMapCollision(collisionMapInfo);
@@ -1213,14 +1290,25 @@ void Player::BehaviorRootUpdate()
 
 	if (isJumpRushing_)
 	{
-		++jumpRushFrame_;
+		jumpRushFrame_ += GameTime::GetDeltaFrames();
 		const bool rushFinished = jumpRushFrame_ >= kJumpRushFrame;
 		const bool hitSurface = collisionMapInfo.hitWall || collisionMapInfo.isCeiling || collisionMapInfo.isLanding;
 		if (rushFinished || hitSurface)
 		{
-			// 突進速度を残さず、次フレームから移動入力を反映できるようにする。
-			velocity_ = {};
-			// GameSceneの敵判定がこの後に走るため、衝突フレーム中は攻撃を有効に保つ。
+			// 突進終了後も一部の速度を残し、通常移動へ滑らかにつなげる
+			velocity_.x *= kRushExitHorizontalRetention;
+			velocity_.y *= kRushExitVerticalRetention;
+
+			// 衝突した方向には慣性を残さない
+			if (collisionMapInfo.hitWall) {
+				velocity_.x = 0.0f;
+			}
+
+			if (collisionMapInfo.isCeiling || collisionMapInfo.isLanding) {
+				velocity_.y = 0.0f;
+			}
+
+			// 敵との衝突判定が終わるまで攻撃判定を残す。
 			isJumpRushEnding_ = true;
 		}
 
@@ -1234,7 +1322,7 @@ void Player::BehaviorRootUpdate()
 	// 旋回制御
 	if (turnTimer_ > 0.0f)
 	{
-		turnTimer_ -= 1.0f / 60.0f;
+		turnTimer_ -= GameTime::GetDeltaSeconds();
 
 		// タイマーが0未満にならないようにクランプ
 		if (turnTimer_ < 0.0f)
@@ -1282,7 +1370,7 @@ void Player::BehaviorAttackInitialize()
 // 攻撃行動更新
 void Player::BehaviorAttackUpdate()
 {
-	attackParameter_++;
+	attackParameter_ += GameTime::GetDeltaFrames();
 
 	// 攻撃動作用の速度
 	Vector3 velocity{};
@@ -1359,11 +1447,13 @@ void Player::BehaviorAttackUpdate()
 
 	// 既存のマップ衝突判定と移動処理を走らせる
 	CollisionMapInfo collisionMapInfo;
+
 	if (velocity.y > 0.0f)
 	{
 		onGround_ = false;
 	}
-	collisionMapInfo.move = velocity;
+
+	collisionMapInfo.move = MyMathUtility::Multiply(GameTime::GetDeltaFrames(), velocity);
 
 	// マップ衝突チェック
 	CheckMapCollision(collisionMapInfo);
@@ -1378,7 +1468,8 @@ void Player::BehaviorAttackUpdate()
 
 	// 敵にヒットしていない攻撃だけ、空中攻撃を消費した状態にする。
 	// ヒット後に isAttackedInAir_ を再び true に戻さないことが重要。
-	if (!onGround_ && !hasHitEnemyDuringAttack_) {
+	if (!onGround_ && !hasHitEnemyDuringAttack_)
+	{
 		isAttackedInAir_ = true;
 	}
 
@@ -1393,13 +1484,14 @@ void Player::BehaviorAttackUpdate()
 	UpdateMatrix();
 }
 
-void Player::OnAttackHit() {
+void Player::OnAttackHit()
+{
 	// 空中攻撃を再び可能にする
 	isAttackedInAir_ = false;
 	hasHitEnemyDuringAttack_ = true;
 
-	// 空中ジャンプを1回だけ可能にする
-	canAirJump_ = true;
+	// 攻撃成功で空中の方向選択突進を1回分回復する。
+	canAirRush_ = true;
 
 	// 攻撃アニメーションは中断せず、kReverberation の終了まで継続する。
 	// 通常状態への遷移は BehaviorAttackUpdate() 側に任せる。
@@ -1429,13 +1521,13 @@ void Player::BehaviorKnockbackInitialize()
 // ノックバック行動更新
 void Player::BehaviorKnockbackUpdate()
 {
-	knockbackParameter_++;
+	knockbackParameter_ += GameTime::GetDeltaFrames();
 
 	// 強い初速で弾き飛ばされるフェーズ
 	if (knockbackParameter_ < kKnockbackBlowTime)
 	{
 		// 空気抵抗などで徐々に減速させる
-		velocity_.x *= 0.9f;
+		velocity_.x *= GameTime::GetDampingFactor(0.9f);
 	} else if (knockbackParameter_ < kKnockbackBlowTime + kKnockbackRecoverTime) {
 		// 移動が停止し、体勢を立て直すフェーズ
 		velocity_.x = 0.0f; // 完全に停止して硬直
@@ -1448,7 +1540,7 @@ void Player::BehaviorKnockbackUpdate()
 
 	// 共通の移動・衝突判定処理
 	CollisionMapInfo collisionMapInfo;
-	collisionMapInfo.move = velocity_;
+	collisionMapInfo.move = MyMathUtility::Multiply(GameTime::GetDeltaFrames(), velocity_);
 	CheckMapCollision(collisionMapInfo);
 	JudgmentResultReflectionMove(collisionMapInfo);
 	ContactToCeiling(collisionMapInfo);

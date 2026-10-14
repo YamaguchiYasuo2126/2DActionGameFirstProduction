@@ -15,6 +15,7 @@
 #include "CheckpointGate.h"
 #include "CheckpointTrigger.h"
 #include "GamePadInput.h"
+#include "GameTime.h"
 #include "SoundManager.h"
 
 #include <filesystem>
@@ -26,6 +27,7 @@ using namespace KamataEngine;
 GameScene::GameScene() {}
 
 GameScene::~GameScene() {
+	GameTime::SetTimeScale(1.0f);
 	ClearRoomObjects();
 	delete player_;
 	player_ = nullptr;
@@ -108,14 +110,13 @@ GameScene::~GameScene() {
 	hudGuideCharacters_.clear();
 
 	// ジャンプ表示の解放
-	delete jumpDirectionBack_;
 	delete jumpDirectionCursor_;
-	jumpDirectionBack_ = nullptr;
 	jumpDirectionCursor_ = nullptr;
 }
 
 void GameScene::Initialize(StageManager* stageDataManager) 
 {
+	GameTime::SetTimeScale(1.0f);
 	// ここにインゲームの初期化処理を書く
 
 	// 引数をメンバ変数に記録する
@@ -196,10 +197,6 @@ void GameScene::Initialize(StageManager* stageDataManager)
 
 	uint32_t textureHandle = TextureManager::Load("white1x1.png");
 
-	jumpDirectionBack_ = Sprite::Create(textureHandle, Vector2(295.0f, 619.0f));
-	jumpDirectionBack_->SetSize(Vector2(100.0f, 100.0f));
-	jumpDirectionBack_->SetColor(Vector4(0.1f, 0.1f, 0.1f, 0.8f));
-
 	jumpDirectionCursor_ = Sprite::Create(textureHandle, Vector2(337.0f, 627.0f));
 	jumpDirectionCursor_->SetSize(Vector2(16.0f, 16.0f));
 	jumpDirectionCursor_->SetColor(Vector4(1.0f, 0.8f, 0.2f, 1.0f));
@@ -228,9 +225,10 @@ void GameScene::Initialize(StageManager* stageDataManager)
 			cursorX += kFontWidth * scale;
 		}
 	};
-	appendHudText("MOVE : LEFT/RIGHT OR A/D", 890.0f, 610.0f, 1.5f);
-	appendHudText("RUSH : HOLD SPACE + WASD", 890.0f, 640.0f, 1.5f);
-	appendHudText("PAD  : HOLD A + L STICK", 890.0f, 670.0f, 1.5f);
+	appendHudText("MOVE : LEFT/RIGHT OR A/D", 890.0f, 575.0f, 1.0f);
+	appendHudText("JUMP : W OR UP", 890.0f, 600.0f, 1.0f);
+	appendHudText("RUSH : HOLD SPACE + WASD", 890.0f, 625.0f, 1.0f);
+	appendHudText("PAD  : HOLD A + L STICK", 890.0f, 650.0f, 1.0f);
 
 	// ゲームオーバー時は、赤い背景と2つの選択カードを表示する。
 	gameOverOverlay_ = Sprite::Create(textureHandle, Vector2(0.0f, 0.0f));
@@ -317,6 +315,14 @@ void GameScene::Initialize(StageManager* stageDataManager)
 
 void GameScene::Update()
 {
+	// 方向選択中は入力の読み取りを通常どおり保ち、ゲーム内時間だけを20%にする。
+	const bool isRushAimInput = Input::GetInstance()->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
+	const bool isRushAimTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
+	const bool isRushAiming = phase_ == Phase::kPlay && player_ && isRushAimInput &&
+		(player_->IsRushAiming() || isRushAimTriggered);
+	GameTime::SetTimeScale(isRushAiming ? kRushAimTimeScale : 1.0f);
+	const float deltaFrames = GameTime::GetDeltaFrames();
+
 	// ここにインゲームの更新処理を書く
 	#ifdef _DEBUG
 	if (Input::GetInstance()->TriggerKey(DIK_C))
@@ -348,15 +354,11 @@ void GameScene::Update()
 
 	// フェードの更新処理
 	fade_->Update();
-	if (roomTransitionCooldown_ > 0)
-	{
-		--roomTransitionCooldown_;
-	}
 
 	// 鉱石スイッチで有効になる石橋の残り時間を更新する。
 	if (oreSwitchTimer_ > 0)
 	{
-		--oreSwitchTimer_;
+		oreSwitchTimer_ = (std::max)(0.0f, oreSwitchTimer_ - deltaFrames);
 		isOreSwitchActive_ = oreSwitchTimer_ > 0;
 	}
 
@@ -374,22 +376,6 @@ void GameScene::Update()
 	
 		// 自キャラの更新
 		player_->Update();
-
-		// 8方向選択中のカーソル位置を更新
-		if (player_->IsRushAiming())
-		{
-			const float angle = player_->GetRushAngle();
-
-			// 方向表示の中心座標
-			const Vector2 center = {345.0f, 669.0f};
-			const float radius = 34.0f;
-
-			// カーソルサイズが16×16なので、中心を合わせるため8を引く
-			const float x = center.x + std::cos(angle) * radius - 8.0f;
-			const float y = center.y - std::sin(angle) * radius - 8.0f;
-
-			jumpDirectionCursor_->SetPosition(Vector2(x, y));
-		}
 
 		// 敵キャラの更新
 		for (BaseEnemy* enemy : enemies_)
@@ -427,10 +413,12 @@ void GameScene::Update()
 		{
 			isRetrySelected_ = true;
 		}
+
 		if (Input::GetInstance()->TriggerKey(DIK_RIGHT) || GamePadInput::IsRightTriggered())
 		{
 			isRetrySelected_ = false;
 		}
+
 		if (Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsConfirmTriggered())
 		{
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kDecision);
@@ -444,6 +432,7 @@ void GameScene::Update()
 				finished_ = true;
 			}
 		}
+
 		gameOverSelector_->SetPosition(isRetrySelected_ ? Vector2(172.0f, 292.0f) : Vector2(712.0f, 292.0f));
 		break;
 	case Phase::kDeath:
@@ -502,7 +491,8 @@ void GameScene::Update()
 	// 終了したエフェクトを削除する
 	effects_.remove_if([](BaseEffect* effect) 
 		{
-		if (effect->IsDead()) {
+		if (effect->IsDead())
+		{
 			delete effect;
 			return true;
 		}
@@ -513,7 +503,8 @@ void GameScene::Update()
 	cameraController_->Update();
 
 	// デバッグカメラの更新
-	if (isDebugCameraActive_) {
+	if (isDebugCameraActive_)
+	{
 
 		debugCamera_->Update();
 		// デバッグカメラからビュー行列とプロジェクション行列をコピーする
@@ -522,9 +513,36 @@ void GameScene::Update()
 
 		// ビュープロジェクション行列の転送
 		cameraController_->GetCamera()->TransferMatrix();
-	} else {
+	}
+	else
+	{
 		// 通常カメラのビュープロジェクション行列の更新と転送
 		cameraController_->GetCamera()->UpdateMatrix();
+	}
+
+	// プレイヤーの周囲に8方向選択を表示する
+	if (player_ && player_->IsRushAiming())
+	{
+		Camera* camera = cameraController_->GetCamera();
+
+		// ワールド座標をNDC座標へ変換
+		const Matrix4x4 viewProjection = MyMathUtility::Multiply(camera->matView, camera->matProjection);
+
+		const Vector3 playerNdc = MyMathUtility::Transform(player_->GetWorldPosition(), viewProjection);
+
+		constexpr float kScreenWidth = 1280.0f;
+		constexpr float kScreenHeight = 720.0f;
+
+		// NDC座標から画面座標へ変換
+		const Vector2 playerScreenPosition = {(playerNdc.x + 1.0f) * 0.5f * kScreenWidth, (1.0f - playerNdc.y) * 0.5f * kScreenHeight};
+
+		// 選択方向へカーソルを配置
+		const float angle = player_->GetRushAngle();
+		constexpr float kCursorRadius = 42.0f;
+		constexpr float kCursorHalfSize = 8.0f;
+
+		jumpDirectionCursor_->SetPosition({playerScreenPosition.x + std::cos(angle) * kCursorRadius - kCursorHalfSize,
+		                                   playerScreenPosition.y - std::sin(angle) * kCursorRadius - kCursorHalfSize});
 	}
 
 }
@@ -828,7 +846,9 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 	}
 
 	ConfigureCameraForCurrentMap();
-	roomTransitionCooldown_ = 20;
+	// 入ってきたRoomExitへ即座に戻るのを防ぐ。
+	// プレイヤーが出口範囲から離れると、再び移動可能になる。
+	isRoomExitArmed_ = false;
 	return true;
 }
 
@@ -864,28 +884,60 @@ void GameScene::ConfigureCameraForCurrentMap()
 	cameraController_->SetFixedCameraX(false);
 }
 
-void GameScene::CheckRoomTransitions()
-{
-	if (roomTransitionCooldown_ > 0 || phase_ != Phase::kPlay)
-	{
+void GameScene::CheckRoomTransitions() {
+	if (phase_ != Phase::kPlay || !player_) {
 		return;
 	}
 
 	const AABB playerBounds = player_->GetAABB();
+
+	// 部屋へ入った直後は、到着地点付近のRoomExitから離れるまで待つ。
+	if (!isRoomExitArmed_) {
+		for (const TiledRoomExitData& exit : currentRoom_.exits) {
+			if (MyMathUtility::IsCollision(playerBounds, exit.bounds)) {
+				return;
+			}
+		}
+
+		// すべての出口範囲から離れたので、次フレームから移動可能にする。
+		isRoomExitArmed_ = true;
+		return;
+	}
+
+	// 高速移動でRoomExitを1フレーム中に通り抜けても検出できるよう、
+	// 前フレームから現在までを覆うAABBを作成する。
+	const AABB previousBounds = player_->GetPreviousAABB();
+
+	AABB sweptBounds{};
+	sweptBounds.min = 
+	{
+	    (std::min)(playerBounds.min.x, previousBounds.min.x),
+	    (std::min)(playerBounds.min.y, previousBounds.min.y),
+	    (std::min)(playerBounds.min.z, previousBounds.min.z),
+	};
+
+	sweptBounds.max = 
+	{
+	    (std::max)(playerBounds.max.x, previousBounds.max.x),
+	    (std::max)(playerBounds.max.y, previousBounds.max.y),
+	    (std::max)(playerBounds.max.z, previousBounds.max.z),
+	};
+
 	for (const TiledRoomExitData& exit : currentRoom_.exits)
 	{
-		if (exit.targetRoom.empty() || !MyMathUtility::IsCollision(playerBounds, exit.bounds))
+		if (exit.targetRoom.empty() || !MyMathUtility::IsCollision(sweptBounds, exit.bounds))
 		{
 			continue;
 		}
 
-		const std::filesystem::path targetPath =
-			std::filesystem::path(currentRoomPath_).parent_path() / exit.targetRoom;
+		const std::filesystem::path targetPath = std::filesystem::path(currentRoomPath_).parent_path() / exit.targetRoom;
+
 		if (LoadTiledRoom(targetPath.lexically_normal().generic_string(), exit.targetSpawn))
 		{
 			cameraController_->SetTarget(player_);
 			cameraController_->Reset();
 		}
+
 		return;
 	}
 }
@@ -1008,7 +1060,7 @@ void GameScene::ChangePhase()
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kGoal);
 			isCleared_ = true;
 			stageManager_->MarkCurrentStageCleared();
-			stageClearTimer_ = 0;
+			stageClearTimer_ = 0.0f;
 			phase_ = Phase::kStageClear;
 			break;
 		}
@@ -1073,7 +1125,7 @@ void GameScene::ChangePhase()
 
 	case Phase::kStageClear:
 		// ゲームを止めてクリア演出を表示してからフェードアウトする。
-		++stageClearTimer_;
+		stageClearTimer_ += GameTime::GetDeltaFrames();
 		if (stageClearTimer_ >= kStageClearDuration)
 		{
 			fade_->Start(Fade::Status::FadeOut, kFadeDuration);
@@ -1175,7 +1227,6 @@ void GameScene::Draw()
 
 	if (player_->IsRushAiming()) {
 		Sprite::PreDraw();
-		jumpDirectionBack_->Draw();
 		jumpDirectionCursor_->Draw();
 		Sprite::PostDraw();
 	}

@@ -1,6 +1,7 @@
 #pragma once
 #include "KamataEngine.h"
 #include "AABB.h"
+#include "GameTime.h"
 #include <numbers>
 
 class MapChipField;
@@ -116,9 +117,10 @@ public:
 	// ギミックからプレイヤーへ加える外力
 	void AddExternalVelocity(const KamataEngine::Vector3& velocity)
 	{
-		velocity_.x += velocity.x;
-		velocity_.y += velocity.y;
-		velocity_.z += velocity.z;
+		const float deltaFrames = GameTime::GetDeltaFrames();
+		velocity_.x += velocity.x * deltaFrames;
+		velocity_.y += velocity.y * deltaFrames;
+		velocity_.z += velocity.z * deltaFrames;
 	}
 
 	// 移動足場・崩れる足場への着地処理
@@ -271,8 +273,8 @@ private:
 	static inline const float kGravityAcceleration = 0.01f;
 	// 最大落下速度(下方向)
 	static inline const float kLimitFallSpeed = 0.2f;
-	// ジャンプ初速(上方向)
-	static inline const float kJumpAcceleration = 0.24f;
+	// W/↑で即時に出す通常ジャンプの初速
+	static inline const float kNormalJumpSpeed = 0.24f;
 
 	// マップチップによるフィールド
 	MapChipField* mapChipField_ = nullptr;
@@ -295,12 +297,12 @@ private:
 	bool isRespawnRequested_ = false;
 	static inline const int32_t kMaxHp = 3;
 	int32_t hp_ = kMaxHp;
-	uint32_t damageInvincibleTimer_ = 0;
-	static inline const uint32_t kDamageInvincibleFrames = 60;
+	float damageInvincibleTimer_ = 0.0f;
+	static inline const float kDamageInvincibleFrames = 60.0f;
 
 	// ツルにつかまっている間の状態
 	bool isHanging_ = false;
-	uint32_t vineDetachCooldown_ = 0;
+	float vineDetachCooldown_ = 0.0f;
 	KamataEngine::Vector3 vineAnchorPosition_{};
 	float vineAngle_ = 0.0f;
 	float vineAngularVelocity_ = 0.0f;
@@ -333,20 +335,36 @@ private:
 	// 現在の攻撃で敵にヒットしたか。ヒット後は空中攻撃を再び消費しない。
 	bool hasHitEnemyDuringAttack_ = false;
 
-	// 敵に攻撃を当てた後だけ使える空中ジャンプ
-	bool canAirJump_ = false;
+	// 空中で方向選択突進を使えるか。着地または攻撃成功で回復する。
+	bool canAirRush_ = true;
 
 	// チャージジャンプ用の変数群
 
 	// ジャンプをチャージしているか
 	bool isRushAiming_ = false;
 
+	// 方向選択を開始してからの実時間
+	float rushAimElapsedSeconds_ = 0.0f;
+
+	// Spaceを押し続けられる最大時間。経過後は現在方向へ自動発動する。
+	static inline const float kRushAimMaxSeconds = 0.25f;
+
+	// 突進終了後に残す速度の割合
+	static inline const float kRushExitHorizontalRetention = 0.65f;
+	static inline const float kRushExitVerticalRetention = 0.35f;
+
+	// 通常走行速度を超えた慣性の、60FPS基準の1フレーム減衰率
+	static inline const float kRushMomentumDamping = 0.96f;
+
+
 	// Spaceを離した後の全周攻撃付き突進ジャンプ
 	bool isJumpRushing_ = false;
 	bool isJumpRushEnding_ = false;
-	uint32_t jumpRushFrame_ = 0;
+	float jumpRushFrame_ = 0.0f;
 	static inline const float kJumpRushSpeed = 0.6f;
-	static inline const uint32_t kJumpRushFrame = 9;
+	static inline const float kJumpRushFrame = 9.0f;
+	// 地上突進の発動時に、床との接触を切るため上へずらす量。
+	static inline const float kGroundRushLift = 0.15f;
 
 
 	// ラジアンで保持する。初期値は真上（90度）

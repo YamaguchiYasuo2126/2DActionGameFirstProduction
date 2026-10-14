@@ -140,7 +140,6 @@ private:
 	// 天球の3Dモデルデータ
 	KamataEngine::Model* modelSkydome_ = nullptr;
 
-	KamataEngine::Sprite* jumpDirectionBack_ = nullptr;
 	KamataEngine::Sprite* jumpDirectionCursor_ = nullptr;
 	std::vector<KamataEngine::Sprite*> hudGuideCharacters_;
 
@@ -154,8 +153,9 @@ private:
 	// ステージクリア時に表示する演出用スプライト
 	KamataEngine::Sprite* stageClearOverlay_ = nullptr;
 	KamataEngine::Sprite* stageClearBanner_ = nullptr;
-	uint32_t stageClearTimer_ = 0;
-	static inline const uint32_t kStageClearDuration = 90;
+	float stageClearTimer_ = 0.0f;
+	static inline const float kStageClearDuration = 90.0f;
+	static inline const float kRushAimTimeScale = 0.2f;
 
 	// ワールドトランスフォーム
 	KamataEngine::WorldTransform worldTransform_;
@@ -176,7 +176,8 @@ private:
 	WorldProgress worldProgress_;
 	std::string currentRoomPath_;
 	bool isUsingTiledRooms_ = false;
-	uint32_t roomTransitionCooldown_ = 0;
+	// 部屋へ入った直後のRoomExitから離れるまで、次の部屋移動を禁止する。
+	bool isRoomExitArmed_ = true;
 	
 	void GenerateFieldObjects();
 	void BuildBlockTransforms();
@@ -209,7 +210,7 @@ private:
 
 	bool isCleared_ = false;
 	bool isOreSwitchActive_ = false;
-	uint32_t oreSwitchTimer_ = 0;
+	float oreSwitchTimer_ = 0.0f;
 
 	// 最後に上面へ着地したチェックポイント。未到達時はP0の初期地点。
 	KamataEngine::Vector3 respawnPosition_{};

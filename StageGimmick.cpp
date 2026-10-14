@@ -1,15 +1,17 @@
 #include "StageGimmick.h"
 
+#include "GameTime.h"
 #include "MyMathUtility.h"
 #include "MapChipField.h"
 #include "Player.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace KamataEngine;
 
 void StageGimmick::Initialize(Model* model, Model* lightningModel, Camera* camera, MapChipField* mapChipField,
-	bool* isOreSwitchActive, uint32_t* oreSwitchTimer, const Vector3& position, GimmickType type)
+	bool* isOreSwitchActive, float* oreSwitchTimer, const Vector3& position, GimmickType type)
 {
 	model_ = model;
 	lightningModel_ = lightningModel;
@@ -92,6 +94,7 @@ void StageGimmick::Initialize(Model* model, Model* lightningModel, Camera* camer
 
 void StageGimmick::Update()
 {
+	const float deltaFrames = GameTime::GetDeltaFrames();
 	movementDelta_ = {};
 
 	if (!isActive_)
@@ -102,13 +105,13 @@ void StageGimmick::Update()
 	if (type_ == GimmickType::kMovingPlatform)
 	{
 		const float previousX = worldTransform_.translation_.x;
-		worldTransform_.translation_.x = startPosition_.x + std::sin(static_cast<float>(timer_) * kMovingSpeed) * kMovingDistance;
+		worldTransform_.translation_.x = startPosition_.x + std::sin(timer_ * kMovingSpeed) * kMovingDistance;
 		movementDelta_.x = worldTransform_.translation_.x - previousX;
 	}
 	else if (type_ == GimmickType::kWaterWheelLift)
 	{
 		const Vector3 previousPosition = worldTransform_.translation_;
-		const float angle = static_cast<float>(timer_) * kWaterWheelSpeed;
+		const float angle = timer_ * kWaterWheelSpeed;
 		worldTransform_.translation_.x = startPosition_.x + std::cos(angle) * kWaterWheelRadius;
 		worldTransform_.translation_.y = startPosition_.y + std::sin(angle) * kWaterWheelRadius;
 		movementDelta_.x = worldTransform_.translation_.x - previousPosition.x;
@@ -120,17 +123,17 @@ void StageGimmick::Update()
 		// 一定時間待ってから落下する。ブロックへ到達したら開始位置へ戻る。
 		if (timer_ < kFallingRockWaitFrames)
 		{
-			++timer_;
+			timer_ += deltaFrames;
 		}
 		else
 		{
-			worldTransform_.translation_.y -= kFallingRockSpeed;
+			worldTransform_.translation_.y -= kFallingRockSpeed * deltaFrames;
 
 			const IndexSet indexSet = mapChipField_->GetMapChipIndexSetByPosition(worldTransform_.translation_);
 			if (mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex) == MapChipType::kBlock)
 			{
 				worldTransform_.translation_ = startPosition_;
-				timer_ = 0;
+				timer_ = 0.0f;
 			}
 		}
 
@@ -158,28 +161,33 @@ void StageGimmick::Update()
 
 	if (cooldown_ > 0)
 	{
-		--cooldown_;
+		cooldown_ = (std::max)(0.0f, cooldown_ - deltaFrames);
 	}
 
 	if (type_ == GimmickType::kVanishingCloud)
 	{
 		if (isCloudHidden_)
 		{
-			if (++cloudTimer_ >= kCloudHiddenFrames)
+			cloudTimer_ += deltaFrames;
+			if (cloudTimer_ >= kCloudHiddenFrames)
 			{
 				// 復活後は、もう一度乗るまで消滅カウントを開始しない。
 				isCloudHidden_ = false;
 				isCloudTriggered_ = false;
-				cloudTimer_ = 0;
+				cloudTimer_ = 0.0f;
 			}
 		}
-		else if (isCloudTriggered_ && ++cloudTimer_ >= kCloudVisibleFrames)
+		else if (isCloudTriggered_)
 		{
-			isCloudHidden_ = true;
-			cloudTimer_ = 0;
+			cloudTimer_ += deltaFrames;
+			if (cloudTimer_ >= kCloudVisibleFrames)
+			{
+				isCloudHidden_ = true;
+				cloudTimer_ = 0.0f;
+			}
 		}
 	}
-	++timer_;
+	timer_ += deltaFrames;
 
 	UpdateMatrix();
 }
@@ -329,8 +337,8 @@ bool StageGimmick::IsActive() const
 
 bool StageGimmick::IsThunderStriking() const
 {
-	const uint32_t cycle = kThunderWaitFrames + kThunderStrikeFrames;
-	return timer_ % cycle >= kThunderWaitFrames;
+	const float cycle = kThunderWaitFrames + kThunderStrikeFrames;
+	return std::fmod(timer_, cycle) >= kThunderWaitFrames;
 }
 
 void StageGimmick::UpdateMatrix()

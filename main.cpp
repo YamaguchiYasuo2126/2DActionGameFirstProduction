@@ -5,6 +5,7 @@
 #include "KamataEngine.h"
 #include "StageManager.h"
 #include "SoundManager.h"
+#include "GameTime.h"
 #include <Windows.h>
 #include <array>
 #include <cstdint>
@@ -295,6 +296,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	// エンジンの初期化
 	KamataEngine::Initialize(L"カエルカエる");
+	GameTime::Initialize();
 
 	// DirectXCommonインスタンスの取得
 	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
@@ -335,6 +337,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		if (KamataEngine::Update()) {
 			break;
 		}
+		GameTime::BeginFrame();
 
 		// ImGui受付開始
 		imguiManager->Begin();

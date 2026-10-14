@@ -1,4 +1,5 @@
 #include "CameraController.h"
+#include "GameTime.h"
 #include "Player.h"
 #include "MyMathUtility.h"
 #define NOMINMAX
@@ -35,11 +36,12 @@ void CameraController::Update() {
 	targetCoordinate_.z = targetWorldTransform.translation_.z + targetOffset_.z;
 
 	// 横長の部屋も追従できるよう、X方向も補間して追従する。
+	const float interpolationRate = GameTime::GetLerpFactor(kInterpolationRate);
 	camera_.translation_.x = isFixedCameraX_
 		? fixedCameraX_
-		: MyMathUtility::Lerp(camera_.translation_.x, targetCoordinate_.x, kInterpolationRate);
-	camera_.translation_.y = MyMathUtility::Lerp(camera_.translation_.y, targetCoordinate_.y, kInterpolationRate);
-	camera_.translation_.z = MyMathUtility::Lerp(camera_.translation_.z, targetCoordinate_.z, kInterpolationRate);
+		: MyMathUtility::Lerp(camera_.translation_.x, targetCoordinate_.x, interpolationRate);
+	camera_.translation_.y = MyMathUtility::Lerp(camera_.translation_.y, targetCoordinate_.y, interpolationRate);
+	camera_.translation_.z = MyMathUtility::Lerp(camera_.translation_.z, targetCoordinate_.z, interpolationRate);
 
 	// 追従対象が画面外に出ないように補正
 	camera_.translation_.x = (std::max)(camera_.translation_.x, targetWorldTransform.translation_.x + margin_.left);

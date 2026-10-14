@@ -1,5 +1,6 @@
 #include "StageSelectScene.h"
 #include "GamePadInput.h"
+#include "GameTime.h"
 #include "SoundManager.h"
 
 using namespace KamataEngine;
@@ -26,6 +27,7 @@ StageSelectScene::~StageSelectScene()
 
 void StageSelectScene::Initialize(StageManager* stageManager)
 {
+	GameTime::SetTimeScale(1.0f);
 	stageManager_ = stageManager;
 	selectedStageIndex_ = stageManager_->GetCurrentStageIndex();
 	finished_ = false;

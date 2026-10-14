@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include "DeathParticles.h"
 #include "EasingUtility.h"
+#include "GameTime.h"
 #include "MapChipField.h"
 #include "MyMathUtility.h"
 #include <algorithm>
@@ -38,7 +39,7 @@ void DeathParticles::Update()
 	}
 
 	// カウンターを1フレーム分の秒数進める
-	counter_ += 1.0f / 60.0f;
+	counter_ += GameTime::GetDeltaSeconds();
 
 	// 存続時間の上限に達したら
 	if (counter_ >= kDuration)
@@ -50,6 +51,7 @@ void DeathParticles::Update()
 
 	for (uint32_t i = 0; i < kNumParticles; ++i)
 	{
+		const float deltaFrames = GameTime::GetDeltaFrames();
 		// 基本となる速度ベクトル
 		Vector3 velocity = {kSpeed, 0.0f, 0.0f};
 		// 回転角を計算する
@@ -59,9 +61,9 @@ void DeathParticles::Update()
 		// 基本ベクトルを回転させて速度ベクトルを得る
 		velocity = MyMathUtility::Transform(velocity, matrixRotation);
 		// 移動処理
-		worldTransforms_[i].translation_.x += velocity.x;
-		worldTransforms_[i].translation_.y += velocity.y;
-		worldTransforms_[i].translation_.z += velocity.z;
+		worldTransforms_[i].translation_.x += velocity.x * deltaFrames;
+		worldTransforms_[i].translation_.y += velocity.y * deltaFrames;
+		worldTransforms_[i].translation_.z += velocity.z * deltaFrames;
 	}
 
 	// アフィン変換行列の作成

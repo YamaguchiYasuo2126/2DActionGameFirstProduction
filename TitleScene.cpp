@@ -3,6 +3,7 @@
 #include <math.h>
 #include "MyMathUtility.h"
 #include "GamePadInput.h"
+#include "GameTime.h"
 #include "SoundManager.h"
 #include <numbers>
 
@@ -29,6 +30,7 @@ TitleScene::~TitleScene()
 
 void TitleScene::Initialize() 
 {
+	GameTime::SetTimeScale(1.0f);
 	// ワールドトランスフォームの初期化
 	worldTransform_.Initialize();
 
@@ -123,7 +125,7 @@ void TitleScene::Update()
 	cameraController_->GetCamera()->UpdateMatrix();
 
 	// 毎フレームタイマーを加算して時間を進める
-	titleFloatingTimer_ += 0.05f;
+	titleFloatingTimer_ += 0.05f * GameTime::GetDeltaFrames();
 	// sinf関数にタイマーを渡してY座標を計算
 	worldTransformTitle_.translation_.y = 6.0f + sinf(titleFloatingTimer_) * 0.5f;
 

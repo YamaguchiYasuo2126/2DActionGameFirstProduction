@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include "EasingUtility.h"
 #include "BaseEnemy.h"
+#include "GameTime.h"
 #include "GameScene.h"
 #include "MapChipField.h"
 #include "MyMathUtility.h"
@@ -149,7 +150,7 @@ void BaseEnemy::BehaviorWalkUpdate() {
 	//worldTransform_.translation_.x += velocity_.x;
 
 	// タイマーを加算
-	walkTimer_ += 1.0f / 60.0f;
+	walkTimer_ += GameTime::GetDeltaSeconds();
 
 	// 回転アニメーション
 	// 周期 (kWalkMotionTime) に基づいて0 〜 2πの範囲をループするように計算
@@ -177,7 +178,7 @@ void BaseEnemy::BehaviorDeathInitialize() {
 // デス行動更新
 void BaseEnemy::BehaviorDeathUpdate() {
 	// アニメーションのタイマーを加算する
-	deathTimer_ += 1.0f / 60.0f;
+	deathTimer_ += GameTime::GetDeltaSeconds();
 
 	// 進行度を 0.0f ～ 1.0f の範囲で計算
 	float t = std::clamp(deathTimer_ / kDeathAnimationTime, 0.0f, 1.0f);

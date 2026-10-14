@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include "ShieldEnemy.h"
 #include "EasingUtility.h"
+#include "GameTime.h"
 #include "Player.h"
 #include "GameScene.h"
 
@@ -53,14 +54,14 @@ void ShieldEnemy::BehaviorWalkUpdate()
 	// クールタイムタイマーを減らす
 	if (guardEffectTimer_ > 0.0f) 
 	{
-		guardEffectTimer_ -= 1.0f / 60.0f;
+		guardEffectTimer_ = (std::max)(0.0f, guardEffectTimer_ - GameTime::GetDeltaSeconds());
 	}
 
 	// 移動
-	worldTransform_.translation_.x += velocity_.x;
+	worldTransform_.translation_.x += velocity_.x * GameTime::GetDeltaFrames();
 
 	// タイマーを加算
-	walkTimer_ += 1.0f / 60.0f;
+	walkTimer_ += GameTime::GetDeltaSeconds();
 
 	// 回転アニメーション
 	// 周期 (kWalkMotionTime) に基づいて0 〜 2πの範囲をループするように計算
@@ -135,7 +136,7 @@ void ShieldEnemy::BehaviorGuardInitialize()
 void ShieldEnemy::BehaviorGuardUpdate()
 {
 	// タイマーを加算
-	guardTimer_ += 1.0f / 60.0f;
+	guardTimer_ += GameTime::GetDeltaSeconds();
 
 	// 0.0 〜 1.0 の割合（進行度）を計算
 	float t = guardTimer_ / kGuardTime;

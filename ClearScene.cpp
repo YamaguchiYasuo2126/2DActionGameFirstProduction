@@ -1,5 +1,6 @@
 #include "ClearScene.h"
 #include "GamePadInput.h"
+#include "GameTime.h"
 #include "SoundManager.h"
 
 using namespace KamataEngine;
@@ -14,6 +15,7 @@ ClearScene::~ClearScene()
 
 void ClearScene::Initialize()
 {
+	GameTime::SetTimeScale(1.0f);
 	// クリア画像が未作成でも画面遷移を確認できるよう、単色背景を表示する。
 	const uint32_t textureHandle = TextureManager::Load("white1x1.png");
 	backgroundSprite_ = Sprite::Create(textureHandle, Vector2(0.0f, 0.0f));

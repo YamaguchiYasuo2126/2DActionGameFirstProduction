@@ -347,7 +347,7 @@ private:
 	float rushAimElapsedSeconds_ = 0.0f;
 
 	// Spaceを押し続けられる最大時間。経過後は現在方向へ自動発動する。
-	static inline const float kRushAimMaxSeconds = 0.25f;
+	static inline const float kRushAimMaxSeconds = 0.50f;
 
 	// 突進終了後に残す速度の割合
 	static inline const float kRushExitHorizontalRetention = 0.65f;
@@ -361,7 +361,7 @@ private:
 	bool isJumpRushing_ = false;
 	bool isJumpRushEnding_ = false;
 	float jumpRushFrame_ = 0.0f;
-	static inline const float kJumpRushSpeed = 0.6f;
+	static inline const float kJumpRushSpeed = 0.5f;
 	static inline const float kJumpRushFrame = 9.0f;
 	// 地上突進の発動時に、床との接触を切るため上へずらす量。
 	static inline const float kGroundRushLift = 0.15f;

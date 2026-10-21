@@ -1,9 +1,9 @@
 {
-    "activeFile": "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json",
+    "activeFile": "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json",
     "expandedProjectPaths": [
-        "rooms",
+        ".",
         "tilesets",
-        "."
+        "rooms"
     ],
     "file.lastUsedOpenFilter": "すべてのファイル (*)",
     "fileStates": {
@@ -15,11 +15,11 @@
             "expandedObjectLayers": [
                 2
             ],
-            "scale": 1,
-            "selectedLayer": 0,
+            "scale": 0.75,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 268.5,
-                "y": 397.5
+                "x": 1600.6666666666665,
+                "y": 367.33333333333337
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields01.json#GameTiles": {
@@ -27,51 +27,236 @@
             "scaleInEditor": 1
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json": {
-            "scale": 1.5,
+            "scale": 1,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 277.66666666666663,
-                "y": 529
+                "x": 789.5,
+                "y": 557.5
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json#GameTiles": {
             "scaleInDock": 1
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json": {
-            "scale": 1,
+            "scale": 0.33,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 541.5,
-                "y": 345.5
+                "x": 1598.4848484848483,
+                "y": 368.18181818181813
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json#GameTiles": {
             "scaleInDock": 1
         },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields04.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields04.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields05.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields05.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields06.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields06.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json": {
+            "scale": 0.75,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1600.6666666666665,
+                "y": 367.33333333333337
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields08.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields08.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields09.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields09.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields10.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields10.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields11.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields11.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields12.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields12.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields13.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields13.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields14.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields14.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields15.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields15.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields16.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields16.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields17.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields17.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields18.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields18.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields19.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields19.json#GameTiles": {
+            "scaleInDock": 1
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields20.json": {
+            "scale": 0.34734374999999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1599.2802519118313,
+                "y": 367.0715249662618
+            }
+        },
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields20.json#GameTiles": {
+            "scaleInDock": 1
+        },
         "rooms/room_01.tmj": {
             "expandedObjectLayers": [
-                3,
-                4,
-                2
+                3
             ],
             "scale": 0.75,
-            "selectedLayer": 1,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 1078,
-                "y": 304.66666666666674
+                "x": 935.3333333333333,
+                "y": 431.33333333333337
             }
         },
         "rooms/room_02.tmj": {
             "expandedObjectLayers": [
                 3,
-                4,
-                2
+                2,
+                4
             ],
             "scale": 0.75,
-            "selectedLayer": 1,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 118,
-                "y": 304.66666666666674
+                "x": 323.33333333333337,
+                "y": 327.33333333333337
             }
         },
         "tilesets/gameplay.tsj": {
@@ -86,15 +271,24 @@
     "openFiles": [
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields01.json",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json",
-        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json"
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json",
+        "rooms/room_01.tmj",
+        "rooms/room_02.tmj",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json"
     ],
     "project": "DirectXGame.tiled-project",
     "recentFiles": [
-        "tilesets/gameplay.tsj",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields01.json",
-        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json",
-        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json",
         "rooms/room_02.tmj",
-        "rooms/room_01.tmj"
+        "rooms/room_01.tmj",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields20.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields19.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields18.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields17.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields16.json",
+        "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields15.json"
     ]
 }

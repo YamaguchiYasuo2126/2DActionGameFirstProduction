@@ -1,7 +1,6 @@
 #include "GameScene.h"
 #include "TitleScene.h"
 #include "ClearScene.h"
-#include "StageSelectScene.h"
 #include "KamataEngine.h"
 #include "StageManager.h"
 #include "SoundManager.h"
@@ -61,7 +60,7 @@ void StopBgm()
 
 void PlayBgm(BgmType bgmType)
 {
-	// タイトルとステージセレクトの間など、同じ曲を継続する場合は再生し直さない。
+	// 同じ曲を継続する場合は再生し直さない。
 	if (currentBgmType_ == bgmType && currentBgmVoiceHandle_ != kInvalidVoiceHandle)
 	{
 		return;
@@ -97,7 +96,6 @@ void PlayCurrentStageBgm(int32_t stageIndex)
 ClearScene* clearScene = nullptr;
 GameScene* gameScene = nullptr;
 TitleScene* titleScene = nullptr;
-StageSelectScene* stageSelectScene = nullptr;
 StageManager* stageManager = nullptr;
 
 // シーン
@@ -107,7 +105,6 @@ enum class Scene
 	kUnknown = 0,
 
 	kTitle,
-	kStageSelect,
 	kGame,
 	kClear,
 };
@@ -126,19 +123,8 @@ void ChangeScene()
 			// 旧シーンの開放
 			delete titleScene;
 			titleScene = nullptr;
-			// 新シーンの生成と初期化
-			scene = Scene::kStageSelect;
-			stageSelectScene = new StageSelectScene;
-			stageSelectScene->Initialize(stageManager);
-			PlayBgm(BgmType::kTitle);
-		}
-		break;
-	case Scene::kStageSelect:
-		if (stageSelectScene->IsFinished())
-		{
-			delete stageSelectScene;
-			stageSelectScene = nullptr;
-
+			// 地続きの3部屋を最初から遊ぶ。
+			stageManager->SetCurrentStageIndex(0);
 			scene = Scene::kGame;
 			gameScene = new GameScene;
 			gameScene->Initialize(stageManager);
@@ -149,35 +135,18 @@ void ChangeScene()
 		if (gameScene->IsFinished())
 		{
 			bool isCleared = gameScene->IsCleared();
-			bool isStageSelectRequested = gameScene->IsStageSelectRequested();
-			const bool areAllStagesCleared = stageManager->AreAllStagesCleared();
 
 			// 旧シーンの開放
 			delete gameScene;
 			gameScene = nullptr;
 
-			if (isStageSelectRequested)
+			if (isCleared)
 			{
-				scene = Scene::kStageSelect;
-				stageSelectScene = new StageSelectScene;
-				stageSelectScene->Initialize(stageManager);
-				PlayBgm(BgmType::kTitle);
-			}
-			else if (isCleared && areAllStagesCleared)
-			{
-				// 全ステージをクリアした時だけ、最終クリア画面へ移る。
+				// room_03のゴール後は、旧ステージのクリア数に依存せずClearSceneへ進む。
 				scene = Scene::kClear;
 				clearScene = new ClearScene();
 				clearScene->Initialize();
 				PlayBgm(BgmType::kClear);
-			}
-			else if (isCleared)
-			{
-				// 通常のステージクリア後は、ステージセレクトへ戻る。
-				scene = Scene::kStageSelect;
-				stageSelectScene = new StageSelectScene;
-				stageSelectScene->Initialize(stageManager);
-				PlayBgm(BgmType::kTitle);
 			}
 			else 
 			{
@@ -224,9 +193,6 @@ void UpdateScene()
 	case Scene::kTitle:
 		titleScene->Update();
 		break;
-	case Scene::kStageSelect:
-		stageSelectScene->Update();
-		break;
 	case Scene::kGame:
 		gameScene->Update();
 		break;
@@ -244,9 +210,6 @@ void DrawScene()
 		break;
 	case Scene::kTitle:
 		titleScene->Draw();
-		break;
-	case Scene::kStageSelect:
-		stageSelectScene->Draw();
 		break;
 	case Scene::kGame:
 		gameScene->Draw();
@@ -318,11 +281,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// デバッグ設定を読み込んで初期ステージを上書き設定する
 	LoadDebugSettings();
 
-	// デバッグビルドでもステージ選択から開始する
-	scene = Scene::kStageSelect;
-	stageSelectScene = new StageSelectScene;
-	stageSelectScene->Initialize(stageManager);
-	PlayBgm(BgmType::kTitle);
+	// デバッグビルドはGameSceneから直接開始する。
+	scene = Scene::kGame;
+	gameScene = new GameScene;
+	gameScene->Initialize(stageManager);
+	PlayCurrentStageBgm(stageManager->GetCurrentStageIndex());
 #else
 	// リリースビルド時などでは通常通りタイトルシーンから開始
 	scene = Scene::kTitle;
@@ -370,7 +333,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	// ゲームシーンの解放
 	delete titleScene;
-	delete stageSelectScene;
 	delete gameScene;
 	delete clearScene;
 
@@ -379,7 +341,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	// nullptrの代入
 	titleScene = nullptr;
-	stageSelectScene = nullptr;
 	gameScene = nullptr;
 	clearScene = nullptr;
 

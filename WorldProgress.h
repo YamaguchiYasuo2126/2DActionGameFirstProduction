@@ -19,6 +19,10 @@ public:
 	}
 
 	bool HasCheckpoint() const { return hasCheckpoint_; }
+	bool IsCurrentCheckpoint(const std::string& roomPath, const std::string& checkpointId) const
+	{
+		return hasCheckpoint_ && checkpointRoomPath_ == roomPath && checkpointId_ == checkpointId;
+	}
 	const std::string& GetCheckpointRoomPath() const { return checkpointRoomPath_; }
 	const KamataEngine::Vector3& GetRespawnPosition() const { return respawnPosition_; }
 

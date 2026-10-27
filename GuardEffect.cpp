@@ -30,6 +30,7 @@ void GuardEffect::Initialize(const Vector3& position) {
 	// 円形エフェクト
 	circleWorldTransform_.Initialize();
 	circleWorldTransform_.translation_ = position;
+	circleColor_.Initialize();
 
 	// 発生直後の初期サイズを設定
 	circleWorldTransform_.scale_ = {0.3f, 0.3f, 0.3f};
@@ -99,11 +100,12 @@ void GuardEffect::Draw() {
 	// 3Dモデル描画前処理
 	Model::PreDraw();
 
-	// 描画の直前にSetAlphaを使って透明度をセット
-	model_->SetAlpha(alpha_);
+	// モデルは突進回復リングとも共有するため、モデル全体の透明度は変更しない。
+	// このガード演出だけの色でフェードさせる。
+	circleColor_.SetColor({1.0f, 1.0f, 1.0f, alpha_});
 
 	// 円形エフェクト
-	model_->Draw(circleWorldTransform_, *camera_);
+	model_->Draw(circleWorldTransform_, *camera_, &circleColor_);
 
 	// 3Dモデル描画後処理
 	Model::PostDraw();

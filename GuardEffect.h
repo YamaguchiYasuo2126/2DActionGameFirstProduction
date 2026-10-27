@@ -59,6 +59,7 @@ private:
 
 	// 円のワールドトランスフォーム
 	KamataEngine::WorldTransform circleWorldTransform_;
+	KamataEngine::ObjectColor circleColor_;
 
 	// アルファ値
 	float alpha_ = 1.0f;

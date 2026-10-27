@@ -1,9 +1,9 @@
 {
-    "activeFile": "rooms/room_01.tmj",
+    "activeFile": "rooms/room_03.tmj",
     "expandedProjectPaths": [
-        ".",
+        "rooms",
         "tilesets",
-        "rooms"
+        "."
     ],
     "file.lastUsedOpenFilter": "すべてのファイル (*)",
     "fileStates": {
@@ -31,7 +31,7 @@
             "selectedLayer": 1,
             "viewCenter": {
                 "x": 1656.5,
-                "y": 367.5
+                "y": 367
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields01.json#GameTiles": {
@@ -47,7 +47,7 @@
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 1600.5,
-                "y": 367.5
+                "y": 368
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields02.json#GameTiles": {
@@ -59,7 +59,7 @@
             "selectedLayer": 1,
             "viewCenter": {
                 "x": 1600.5,
-                "y": 367.5
+                "y": 368
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields03.json#GameTiles": {
@@ -82,7 +82,7 @@
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 1600.5,
-                "y": 367.5
+                "y": 368
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields05.json#GameTiles": {
@@ -93,7 +93,7 @@
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 1600.5,
-                "y": 367.5
+                "y": 368
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields06.json#GameTiles": {
@@ -108,7 +108,7 @@
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 1600.6666666666665,
-                "y": 367.33333333333337
+                "y": 367.99999999999994
             }
         },
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json#GameTiles": {
@@ -260,40 +260,43 @@
         },
         "rooms/room_01.tmj": {
             "expandedObjectLayers": [
-                3,
-                2,
                 4,
-                5
+                3,
+                2
             ],
-            "scale": 1,
+            "scale": 0.5,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 471.5,
-                "y": 319.5
+                "x": 3437,
+                "y": -1177
             }
         },
         "rooms/room_02.tmj": {
             "expandedObjectLayers": [
-                6
+                4,
+                6,
+                3,
+                2
             ],
-            "scale": 1,
-            "selectedLayer": 2,
+            "scale": 0.5,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 319.5,
-                "y": 191.5
+                "x": 1349,
+                "y": -277
             }
         },
         "rooms/room_03.tmj": {
             "expandedObjectLayers": [
+                4,
+                6,
                 3,
-                2,
-                4
+                2
             ],
-            "scale": 1,
-            "selectedLayer": 3,
+            "scale": 1.5,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 319.5,
-                "y": 191.5
+                "x": 639.6666666666666,
+                "y": 132.99999999999997
             }
         },
         "tilesets/gameplay.tsj": {
@@ -330,9 +333,9 @@
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields05.json",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields06.json",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields07.json",
-        "rooms/room_03.tmj",
-        "rooms/room_02.tmj",
         "rooms/room_01.tmj",
+        "rooms/room_02.tmj",
+        "rooms/room_03.tmj",
         "C:/learningKamataEngine/firstProductionPersonal/DirectXGame/Tests/fixtures/gimmick_room.tmj",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields20.json",
         "C:/schoolTeamCreate/TD2_FirstProduction/DirectXGame/Resources/fields/fields19.json"

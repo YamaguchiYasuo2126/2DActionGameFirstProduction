@@ -64,7 +64,7 @@ void TitleScene::Initialize()
 	Vector3 playerPosition = {0.0f, -2.0f, 0.0f};
 
 	// 自キャラの初期化
-	player_->Initialize(modelPlayer_, nullptr, cameraController_->GetCamera(), playerPosition);
+	player_->Initialize(modelPlayer_, nullptr, nullptr, cameraController_->GetCamera(), playerPosition);
 	
 	// セッターを使って正面を向かせる
 	player_->SetRotationY(std::numbers::pi_v<float>);

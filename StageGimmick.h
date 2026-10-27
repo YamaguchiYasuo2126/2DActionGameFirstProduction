@@ -5,6 +5,7 @@
 #include "SwitchLinkState.h"
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <list>
 #include <optional>
 #include <string>
@@ -165,6 +166,7 @@ private:
 	enum class RingState : uint8_t { kReady, kBursting, kHidden };
 	RingState ringState_ = RingState::kReady;
 	Player* ringCollector_ = nullptr;
+	uint64_t ringPickupLandingSequence_ = 0;
 	float ringEffectSeconds_ = 0.0f;
 	bool ringLandedAfterPickup_ = false;
 

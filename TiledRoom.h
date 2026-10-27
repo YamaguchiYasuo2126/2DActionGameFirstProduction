@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,12 @@ struct TiledCheckpointData
 {
 	std::string id;
 	KamataEngine::Vector3 position{};
+};
+
+struct TiledGoalData
+{
+	std::string id;
+	AABB bounds{};
 };
 
 struct TiledGimmickData
@@ -56,6 +63,7 @@ struct TiledRoomData
 	std::vector<TiledSpawnData> spawns;
 	std::vector<TiledRoomExitData> exits;
 	std::vector<TiledCheckpointData> checkpoints;
+	std::optional<TiledGoalData> goal;
 	std::vector<TiledGimmickData> gimmicks;
 	std::vector<TiledTriangleData> triangles;
 

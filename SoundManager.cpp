@@ -22,7 +22,6 @@ void SoundManager::Initialize()
 	soundHandles_[static_cast<size_t>(SoundEffect::kPlayerDeath)] = audio->LoadWave("SE/playerDeath.wav");
 	soundHandles_[static_cast<size_t>(SoundEffect::kPlayerRespawn)] = audio->LoadWave("SE/playerRespawn.wav");
 	soundHandles_[static_cast<size_t>(SoundEffect::kStageSelect)] = audio->LoadWave("SE/stageSelect.wav");
-	soundHandles_[static_cast<size_t>(SoundEffect::kPlayerAttack)] = audio->LoadWave("SE/playerAttack.wav");
 
 	isInitialized_ = true;
 }

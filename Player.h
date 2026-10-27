@@ -3,6 +3,7 @@
 #include "AABB.h"
 #include "GameTime.h"
 #include <array>
+#include <cstdint>
 #include <numbers>
 
 class MapChipField;
@@ -37,7 +38,9 @@ public:
 	/// <summary>
 	/// 初期化
 	/// </summary>
-	void Initialize(KamataEngine::Model* model, KamataEngine::Model* modelAttack, KamataEngine::Camera* camera, const KamataEngine::Vector3& position);
+	void Initialize(KamataEngine::Model* model, KamataEngine::Model* rushBoxEffectModel,
+		KamataEngine::Model* rushBoardEffectModel, KamataEngine::Camera* camera,
+		const KamataEngine::Vector3& position, KamataEngine::Model* modelFlash = nullptr);
 
 	/// <summary>
 	/// 更新
@@ -63,12 +66,13 @@ public:
 
 	// デスフラグのgetter
 	bool IsDead() const { return isDead_; }
-	bool ConsumeRespawnRequest();
 	int32_t GetHp() const { return hp_; }
 	int32_t GetMaxHp() const { return kMaxHp; }
+	uint64_t GetDamageSequence() const { return damageSequence_; }
+	uint64_t GetRingPickupSequence() const { return ringPickupSequence_; }
 
-	// 従来攻撃、またはチャージジャンプの突進中かどうかを返す。
-	bool IsAttack() const { return behavior_ == Behavior::kAttack || isJumpRushing_; }
+	// 方向選択突進中だけ攻撃判定を持つ。
+	bool IsAttack() const { return isJumpRushing_; }
 
 	// タイトル画面等で向きを強制変更するためのセッターを追加
 	void SetRotationY(float rotationY)
@@ -85,9 +89,9 @@ public:
 	AABB GetAttackAABB();
 	
 	// 衝突応答
-	void OnCollision(const BaseEnemy* enemy);
-	void OnHazardCollision();
-	void TakeDamage(int32_t damage);
+	void OnCollision(BaseEnemy* enemy);
+	void OnHazardCollision(float sourceX);
+	void TakeDamage(int32_t damage, float sourceX);
 	void Respawn(const KamataEngine::Vector3& position, bool restoreHp = true);
 
 	// ツルへつかまる・ツルから離れるための処理
@@ -106,14 +110,15 @@ public:
 	// プレイヤーの向きを取得するゲッターを追加
 	LRDirection GetLRDirection() const { return lrDirection_; }
 
-	// 敵からノックバックを要求する関数
-	void RequestKnockback() { isKnockbackRequested_ = true; }
+	// ダメージ源や盾の位置を基準に、その反対側へノックバックする。
+	void RequestKnockback(float sourceX);
 
 	// 敵に攻撃を当てたとき、空中行動を回復する
 	void OnAttackHit();
 	// 空中で触れたリングは常に取得できる。突進の保持数は1回が上限。
 	bool TryCollectAirRushRing();
 	bool IsOnGround() const { return onGround_; }
+	uint64_t GetLandingSequence() const { return landingSequence_; }
 	
 	bool IsRushAiming() const { return isRushAiming_; }
 
@@ -199,20 +204,20 @@ private:
 	// 通常行動更新
 	void BehaviorRootUpdate();
 
-	// 攻撃行動初期化
-	void BehaviorAttackInitialize();
-
-	// 攻撃行動更新
-	void BehaviorAttackUpdate();
-
 	// ノックバック行動初期化・更新の関数宣言
 	void BehaviorKnockbackInitialize();
 	void BehaviorKnockbackUpdate();
+	void UpdateRushVisuals(float deltaSeconds);
+	void EmitRushVisuals();
+	void SpawnRushGrain(bool board, float spread);
+	void CaptureRushAfterimage();
+	void ClearRushVisuals();
 
 private:
 
 	// ノックバックの要求を記憶するフラグ
 	bool isKnockbackRequested_ = false;
+	float knockbackDirection_ = 0.0f;
 
 	// ノックバックの経過時間カウンター
 	float knockbackParameter_ = 0.0f;
@@ -220,6 +225,8 @@ private:
 	// ノックバックの各フェーズの時間
 	static inline const float kKnockbackBlowTime = 10.0f;    // 弾き飛ばされる時間
 	static inline const float kKnockbackRecoverTime = 20.0f; // 体勢を立て直す時間
+	static inline const float kKnockbackHorizontalSpeed = 0.22f;
+	static inline const float kKnockbackVerticalSpeed = 0.12f;
 
 	LRDirection lrDirection_ = LRDirection::kRight;
 
@@ -239,7 +246,6 @@ private:
 	{
 		kUnknown, // 変更リクエストがない状態
 		kRoot, // 通常状態
-		kAttack, // 攻撃中
 		kKnockback, // ノックバック状態
 	};
 
@@ -247,17 +253,6 @@ private:
 	Behavior behavior_ = Behavior::kRoot;
 
 	Behavior behaviorRequest_ = Behavior::kUnknown;
-
-	// 攻撃フェーズ
-	enum class AttackPhase
-	{
-		kCharge,		// 溜め
-		kRush,			// 突進
-		kReverberation, // 余韻
-	};
-
-	// 現在の攻撃フェーズ
-	AttackPhase attackPhase_;
 
 	// 指定した角の座標を得る関数
 	KamataEngine::Vector3 CornerPosition(const KamataEngine::Vector3& center, Corner corner);
@@ -268,11 +263,35 @@ private:
 
 	// モデル
 	KamataEngine::Model* model_ = nullptr;
+	// 白テクスチャ差し替え専用。通常表示のモデルの材質を変更しない。
+	KamataEngine::Model* modelFlash_ = nullptr;
+	KamataEngine::ObjectColor damageVisualColor_;
+	uint32_t whiteTextureHandle_ = 0;
 	KamataEngine::Vector3 velocity_ = {};
 
-	// 攻撃エフェクト用のモデルデータ
-	KamataEngine::Model* modelAttack_ = nullptr;
-	KamataEngine::WorldTransform worldTransformAttack_;
+	// 突進の粒とプレイヤーの残像。モデルの所有権は GameScene にある。
+	KamataEngine::Model* rushBoxEffectModel_ = nullptr;
+	KamataEngine::Model* rushBoardEffectModel_ = nullptr;
+	struct RushGrain {
+		KamataEngine::WorldTransform transform;
+		KamataEngine::Vector3 velocity{};
+		float remainingSeconds = 0.0f;
+		float durationSeconds = 0.0f;
+		float size = 0.0f;
+		bool board = false;
+	};
+	struct RushAfterimage {
+		KamataEngine::WorldTransform transform;
+		KamataEngine::ObjectColor color;
+		float remainingSeconds = 0.0f;
+	};
+	std::array<RushGrain, 24> rushGrains_{};
+	std::array<RushAfterimage, 8> rushAfterimages_{};
+	KamataEngine::ObjectColor rushBoxColor_;
+	KamataEngine::ObjectColor rushBoardColor_;
+	float rushVisualIntervalSeconds_ = 0.0f;
+	size_t nextRushGrain_ = 0;
+	size_t nextRushAfterimage_ = 0;
 
 	// 加速度
 	static inline const float kAcceleration = 0.01f;
@@ -296,12 +315,13 @@ private:
 
 	// 設置状態フラグ
 	bool onGround_ = true;
+	uint64_t landingSequence_ = 0;
 
 	// 重力加速度(下方向)
 	static inline const float kGravityAcceleration = 0.01f;
 	// 最大落下速度(下方向)
 	static inline const float kLimitFallSpeed = 0.2f;
-	// W/↑で即時に出す通常ジャンプの初速
+	// W/↑またはゲームパッドXで即時に出す通常ジャンプの初速
 	static inline const float kNormalJumpSpeed = 0.24f;
 
 	// マップチップによるフィールド
@@ -311,22 +331,22 @@ private:
 	static inline const float kWidth = 0.8f;
 	static inline const float kHeight = 0.8f;
 
-	// 上方向攻撃の当たり判定。プレイヤー本体より上に配置する
-	static inline const float kAttackHitOffsetY = 0.7f;
-	static inline const float kAttackHitWidth = 0.8f;
-	static inline const float kAttackHitHeight = 0.8f;
-
 	static inline const float kBlank = 0.01f;
 
 	static inline const float kShiftDown = 0.08f;
 
 	// デスフラグ
 	bool isDead_ = false;
-	bool isRespawnRequested_ = false;
-	static inline const int32_t kMaxHp = 3;
+	static inline const int32_t kMaxHp = 5;
 	int32_t hp_ = kMaxHp;
 	float damageInvincibleTimer_ = 0.0f;
 	static inline const float kDamageInvincibleFrames = 60.0f;
+	bool damageFlashActive_ = false;
+	float damageRedTimer_ = 0.0f;
+	static inline const float kDamageRedFrames = 8.0f;
+	static inline const float kDamageFlashIntervalFrames = 5.0f;
+	uint64_t damageSequence_ = 0;
+	uint64_t ringPickupSequence_ = 0;
 
 	// ツルにつかまっている間の状態
 	bool isHanging_ = false;
@@ -339,30 +359,6 @@ private:
 	static inline const float kVineSwingAcceleration = 0.003f;
 	static inline const float kVineGravity = 0.004f;
 	static inline const float kVineMaxAngularVelocity = 0.11f;
-
-	// 攻撃ギミックの経過時間カウンター
-	float attackParameter_ = 0.0f;
-
-	// 攻撃の溜め動作時間
-	static inline const float kAttackChargeTimer = 6.0f;
-
-	// 突進の時間
-	static inline const float kRushTimer = 10.0f;
-
-	// 余韻の時間
-	static inline const float kReverberationTimer = 10.0f;
-
-	// 上昇攻撃中の、1フレームあたりの上方向移動量
-	static inline const float kAttackRiseSpeed = 0.1f;
-
-	// 攻撃エフェクトの表示フラグ
-	bool isAttackEffectVisible_ = false;
-
-	// 空中で攻撃したかどうかのフラグ
-	bool isAttackedInAir_ = false;
-
-	// 現在の攻撃で敵にヒットしたか。ヒット後は空中攻撃を再び消費しない。
-	bool hasHitEnemyDuringAttack_ = false;
 
 	// 空中で方向選択突進を使えるか。着地または攻撃成功で回復する。
 	bool canAirRush_ = true;

@@ -262,6 +262,19 @@ void ReadObjects(TiledRoomData& room, const json& layer)
 			checkpoint.position = PixelPointToWorld(room, object.value("x", 0.0), object.value("y", 0.0));
 			room.checkpoints.push_back(checkpoint);
 		}
+		else if (className == "Goal")
+		{
+			if (room.goal)
+			{
+				throw std::runtime_error("Tiled room can contain only one Goal");
+			}
+			if (object.value("point", false) || object.value("width", 0.0) <= 0.0 ||
+				object.value("height", 0.0) <= 0.0 || object.value("rotation", 0.0) != 0.0)
+			{
+				throw std::runtime_error("Goal '" + id + "' needs a non-rotated rectangle");
+			}
+			room.goal = TiledGoalData{id, PixelRectangleToWorld(room, object)};
+		}
 		else if (className == "GimmickSpawn")
 		{
 			const std::string typeName = GetProperty<std::string>(object, "gimmickType", "");

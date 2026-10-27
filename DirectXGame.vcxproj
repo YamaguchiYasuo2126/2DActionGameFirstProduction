@@ -164,6 +164,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BaseEffect.cpp" />
+    <ClCompile Include="RushAimScreenEffect.cpp" />
     <ClCompile Include="BaseGimmick.cpp" />
     <ClCompile Include="BaseEnemy.cpp" />
     <ClCompile Include="CameraController.cpp" />
@@ -173,7 +174,6 @@
     <ClCompile Include="DeathParticles.cpp" />
     <ClCompile Include="EasingUtility.cpp" />
     <ClCompile Include="StageManager.cpp" />
-    <ClCompile Include="StageSelectScene.cpp" />
     <ClCompile Include="StageGimmick.cpp" />
     <ClCompile Include="SoundManager.cpp" />
     <ClCompile Include="WalkEnemy.cpp" />
@@ -211,6 +211,11 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Develop|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <None Include="Resources\shaders\Obj.hlsli" />
+    <None Include="Resources\shaders\RushAimScreen.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Develop|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
     <None Include="Resources\shaders\Primitive.hlsli" />
     <None Include="Resources\shaders\Shape.hlsli">
       <FileType>Document</FileType>
@@ -292,6 +297,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AABB.h" />
+    <ClInclude Include="RushAimScreenEffect.h" />
     <ClInclude Include="BaseEffect.h" />
     <ClInclude Include="BaseGimmick.h" />
     <ClInclude Include="BaseEnemy.h" />
@@ -304,7 +310,6 @@
     <ClInclude Include="OBB.h" />
     <ClInclude Include="StageManager.h" />
     <ClInclude Include="SoundManager.h" />
-    <ClInclude Include="StageSelectScene.h" />
     <ClInclude Include="StageGimmick.h" />
     <ClInclude Include="WalkEnemy.h" />
     <ClInclude Include="Fade.h" />
@@ -330,4 +335,12 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="CopyShaderCompilerRuntime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <ItemGroup>
+      <ShaderCompilerRuntime Include="$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxcompiler.dll" />
+      <ShaderCompilerRuntime Include="$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(ShaderCompilerRuntime.Identity)')" Text="DirectX Shader Compiler runtime DLL is missing: %(ShaderCompilerRuntime.Identity)" />
+    <Copy SourceFiles="@(ShaderCompilerRuntime)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

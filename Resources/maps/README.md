@@ -7,6 +7,10 @@ Tiledで`DirectXGame.tiled-project`を開き、Worldメニューから
 
 ゲーム側で使用する規則は次のとおりです。
 
+Tiledが表示するタイルセット画像は`tilesets/collision-solid.png`と
+`tilesets/gimmicks.png`です。SVGは編集用の元データなので、図柄を変えた場合は
+対応するPNGも更新してください。
+
 - `CollisionSolid`上の空でないタイルは、すべて通常ブロックになります。
 - `PlayerSpawn`のPoint Objectは、オブジェクト名をスポーンIDとして使います。
 - `EnemySpawn`のPoint Objectには`enemyType`プロパティを設定します。使用できる値は
@@ -44,6 +48,9 @@ Tiledで`DirectXGame.tiled-project`を開き、Worldメニューから
   ツルからはSpaceキー（ゲームパッドはAボタン）で飛び離れます。
 - `RoomExit`のRectangle Objectには`targetRoom`と`targetSpawn`が必要です。
 - `Checkpoint`のPoint Objectは、オブジェクト名を永続IDとして使います。
+- `Goal`は`Goals` Object Layerの回転なしRectangle Objectです。部屋に1個だけ置けます。
+  `room_03`では下側の消える雲の上にある金色の輪がゴールです。触れるとクリア演出後に
+  `ClearScene`へ進みます。矩形の位置・大きさをTiledで変更すると判定と輪の位置も変わります。
 - `TriangleTrace`のPolygon Objectは、水平な底辺と中央の頂点を持つ
   二等辺三角形を3点で指定します。斜辺は45度で、各辺は1回の突進で届く
   長さにしてください。オブジェクト名は部屋内で固有のIDにします。

@@ -10,7 +10,8 @@
 
 using namespace KamataEngine;
 
-void CameraController::Initialize() {
+void CameraController::Initialize()
+{
 	// カメラの設定
 	camera_.farZ = 6000.0f;
 
@@ -19,7 +20,8 @@ void CameraController::Initialize() {
 	
 }
 
-void CameraController::Update() {
+void CameraController::Update()
+{
 	assert(target_ != nullptr);
 
 	// 追従対象のワールドトランスフォームを参照
@@ -57,7 +59,8 @@ void CameraController::Update() {
 	camera_.UpdateMatrix();
 }
 
-void CameraController::Reset() {
+void CameraController::Reset() 
+{
 	assert(target_ != nullptr);
 
 	// 追従対象のワールドトランスフォームを参照

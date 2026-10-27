@@ -76,6 +76,8 @@ StyleCopReport.xml
 *.ilk
 *.meta
 *.obj
+!Resources/checkpoint/checkpoint.obj
+!Resources/checkpointJewel/checkpointJewel.obj
 *.iobj
 *.pch
 *.pdb

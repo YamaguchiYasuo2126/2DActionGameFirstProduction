@@ -1,0 +1,149 @@
+{
+  "type": "map",
+  "version": "1.11",
+  "tiledversion": "1.11.2",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "infinite": false,
+  "width": 4,
+  "height": 4,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 5,
+  "nextobjectid": 10,
+  "tilesets": [
+    {"firstgid": 1, "source": "../../Resources/maps/tilesets/gameplay.tsj"},
+    {"firstgid": 2, "source": "../../Resources/maps/tilesets/gimmicks.tsj"}
+  ],
+  "layers": [
+    {
+      "id": 1,
+      "type": "tilelayer",
+      "name": "CollisionSolid",
+      "width": 4,
+      "height": 4,
+      "data": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+    },
+    {
+      "id": 2,
+      "type": "objectgroup",
+      "name": "Objects",
+      "objects": [
+        {
+          "id": 4,
+          "name": "start",
+          "type": "PlayerSpawn",
+          "point": true,
+          "x": 48,
+          "y": 80
+        },
+        {
+          "id": 5,
+          "name": "exit",
+          "type": "RoomExit",
+          "x": 96,
+          "y": 32,
+          "width": 32,
+          "height": 64,
+          "properties": [
+            {"name": "targetRoom", "type": "string", "value": "other_room.tmj"},
+            {"name": "targetSpawn", "type": "string", "value": "from_fixture"}
+          ]
+        },
+        {
+          "id": 6,
+          "name": "checkpoint_1",
+          "type": "Checkpoint",
+          "point": true,
+          "x": 48,
+          "y": 80
+        },
+        {
+          "id": 7,
+          "name": "outline_1",
+          "type": "TriangleTrace",
+          "x": 16,
+          "y": 80,
+          "polygon": [
+            {"x": 0, "y": 0},
+            {"x": 64, "y": 0},
+            {"x": 32, "y": -32}
+          ]
+        },
+        {
+          "id": 1,
+          "name": "spring_1",
+          "type": "GimmickSpawn",
+          "point": true,
+          "x": 48,
+          "y": 80,
+          "properties": [
+            {"name": "gimmickType", "type": "string", "value": "FountainJump"}
+          ]
+        },
+        {
+          "id": 2,
+          "name": "switch_1",
+          "type": "GimmickSpawn",
+          "point": true,
+          "x": 80,
+          "y": 48,
+          "properties": [
+            {"name": "gimmickType", "type": "string", "value": "OreSwitch"}
+          ]
+        },
+        {
+          "id": 3,
+          "name": "bridge_1",
+          "type": "GimmickSpawn",
+          "point": true,
+          "x": 112,
+          "y": 48,
+          "properties": [
+            {"name": "gimmickType", "type": "string", "value": "StoneBridge"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "tilelayer",
+      "name": "Gimmicks",
+      "width": 4,
+      "height": 4,
+      "data": [
+        0, 0, 0, 0,
+        2147483651, 0, 0, 12,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+      ]
+    },
+    {
+      "id": 4,
+      "type": "objectgroup",
+      "name": "SwitchLinks",
+      "objects": [
+        {
+          "id": 8,
+          "name": "Switch 1",
+          "type": "SwitchLink",
+          "x": 64,
+          "y": 32,
+          "width": 32,
+          "height": 32,
+          "properties": [{"name": "linkId", "type": "string", "value": "fixture_path"}]
+        },
+        {
+          "id": 9,
+          "name": "Walls 1",
+          "type": "BridgeLink",
+          "x": 96,
+          "y": 32,
+          "width": 32,
+          "height": 32,
+          "properties": [{"name": "linkId", "type": "string", "value": "fixture_path"}]
+        }
+      ]
+    }
+  ]
+}

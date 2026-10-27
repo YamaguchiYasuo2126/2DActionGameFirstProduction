@@ -13,6 +13,7 @@ public:
 	virtual void Update() = 0;
 	virtual void Draw() = 0;
 	virtual AABB GetAABB() const = 0;
+	virtual AABB GetDrawAABB() const { return GetAABB(); }
 	virtual void OnPlayerCollision(Player* player) = 0;
 	virtual bool IsActive() const = 0;
 	virtual bool IsSolid() const = 0;

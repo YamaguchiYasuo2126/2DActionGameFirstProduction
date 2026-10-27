@@ -99,10 +99,22 @@ float4 main(VSOutput input) : SV_TARGET {
 	// 丸影
 	for (i = 0; i < CIRCLESHADOW_NUM; i++) {
 		if (circleShadows[i].active) {
+			// 着地点の床上面と、見える側の床の前面だけを暗くする。
 			// オブジェクト表面からキャスターへのベクトル
 			float3 direction = circleShadows[i].position - input.worldpos.xyz;
-			// 光線方向での距離
-			float distance = dot(direction, circleShadows[i].direction);
+			// 2Dステージの落石予告は常に床へ落とす。ライト方向の符号に依存させない。
+			float distance = direction.y;
+			if (distance < 0.0f || distance > 0.55f) {
+				continue;
+			}
+			float surfaceFactor = 0.0f;
+			if (input.normal.y >= 0.5f && distance <= 0.12f) {
+				surfaceFactor = 1.0f;
+			} else if (input.normal.z <= -0.5f) {
+				surfaceFactor = 1.0f - smoothstep(0.12f, 0.55f, distance);
+			} else {
+				continue;
+			}
 
 			// 距離減衰係数
 			float distanceFactor = saturate(
@@ -113,18 +125,18 @@ float4 main(VSOutput input) : SV_TARGET {
 
 			// ライトの座標
 			float3 lightPos = circleShadows[i].position +
-			                  circleShadows[i].direction * circleShadows[i].distanceCasterLight;
+			                  float3(0.0f, circleShadows[i].distanceCasterLight, 0.0f);
 			//  オブジェクト表面からライトへのベクトル（単位ベクトル）
 			float3 L = normalize(lightPos - input.worldpos.xyz);
 			// 角度減衰
-			float cosTheta = dot(L, circleShadows[i].direction);
+			float cosTheta = L.y;
 			float angleFactor = smoothstep(circleShadows[i].cosAngle.y, circleShadows[i].cosAngle.x, cosTheta);
 			
 			// 減衰を合成
 			float factor = distanceFactor * angleFactor;
 
 			// 全て減算する
-			shadecolor.rgb -= factor;
+			shadecolor.rgb -= factor * surfaceFactor;
 		}
 	}
 

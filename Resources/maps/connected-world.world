@@ -13,6 +13,13 @@
             "width": 640,
             "x": 640,
             "y": 0
+        },
+        {
+            "fileName": "rooms/room_03.tmj",
+            "height": 384,
+            "width": 640,
+            "x": 1280,
+            "y": 0
         }
     ],
     "onlyShowAdjacentMaps": false,

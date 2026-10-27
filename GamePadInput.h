@@ -91,5 +91,6 @@ inline bool GetLeftStickDirection(KamataEngine::Vector2& direction) {
 inline bool IsJumpPushed() { return IsButtonPushed(XINPUT_GAMEPAD_A); }
 inline bool IsJumpTriggered() { return IsButtonTriggered(XINPUT_GAMEPAD_A); }
 inline bool IsAttackTriggered() { return IsButtonTriggered(XINPUT_GAMEPAD_X); }
+inline bool IsGrabTriggered() { return IsButtonTriggered(XINPUT_GAMEPAD_B); }
 inline bool IsConfirmTriggered() { return IsButtonTriggered(XINPUT_GAMEPAD_A); }
 }

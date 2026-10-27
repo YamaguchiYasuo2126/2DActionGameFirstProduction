@@ -24,12 +24,12 @@
     <ClCompile Include="GameScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="CheckpointGate.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
-	<ClCompile Include="CheckpointTrigger.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="CheckpointGate.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="CheckpointTrigger.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="Player.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -42,9 +42,12 @@
     <ClCompile Include="MapChipField.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="TiledRoom.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="TiledRoom.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="TriangleTraceGimmick.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="EasingUtility.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -75,18 +78,18 @@
     <ClCompile Include="BaseEnemy.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="FlyingEnemy.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="FlyingEnemy.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="GuardEffect.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="BaseEffect.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="BaseGimmick.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="BaseGimmick.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="StageManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -96,12 +99,12 @@
     <ClCompile Include="StageSelectScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="StageGimmick.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
-	<ClCompile Include="SoundManager.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="StageGimmick.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="SoundManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shaders\SpritePS.hlsl">
@@ -156,12 +159,12 @@
     <ClInclude Include="GameScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="CheckpointGate.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="CheckpointTrigger.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="CheckpointGate.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="CheckpointTrigger.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="Player.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -174,15 +177,21 @@
     <ClInclude Include="MapChipField.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="TiledRoom.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="WorldProgress.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="ThirdParty\nlohmann\json.hpp">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="TiledRoom.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="SwitchLinkState.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="TriangleTraceGimmick.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldProgress.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\nlohmann\json.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="EasingUtility.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -207,12 +216,12 @@
     <ClInclude Include="Fade.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="GamePadInput.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="GameTime.h">
-		<Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="GamePadInput.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTime.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="HitEffect.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -222,32 +231,35 @@
     <ClInclude Include="BaseEnemy.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="FlyingEnemy.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="FlyingEnemy.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="GuardEffect.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="BaseEffect.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="BaseGimmick.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="StageManager.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
-	<ClInclude Include="SoundManager.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="BaseGimmick.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="StageManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="SoundManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="ClearScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="StageSelectScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="StageGimmick.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="StageGimmick.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="OBB.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -87,17 +87,19 @@ void StageSelectScene::Update()
 			selectedStageIndex_ = (selectedStageIndex_ - 1 + stageManager_->GetStageCount()) % stageManager_->GetStageCount();
 			isSelectionMoved = true;
 		}
+
 		if (Input::GetInstance()->TriggerKey(DIK_RIGHT) || GamePadInput::IsRightTriggered())
 		{
 			selectedStageIndex_ = (selectedStageIndex_ + 1) % stageManager_->GetStageCount();
 			isSelectionMoved = true;
 		}
+
 		if (isSelectionMoved)
 		{
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kStageSelect);
 		}
 
-		// Space で選択を確定し、ゲームシーンへ遷移する。
+		// Spaceで選択を確定し、ゲームシーンへ遷移する。
 		if (Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsConfirmTriggered())
 		{
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kDecision);
@@ -105,10 +107,12 @@ void StageSelectScene::Update()
 			fade_->Start(Fade::Status::FadeOut, kFadeDuration);
 			phase_ = Phase::kFadeOut;
 		}
+
 		break;
 	}
 
 	case Phase::kFadeOut:
+
 		if (fade_->IsFinished())
 		{
 			finished_ = true;
@@ -123,12 +127,14 @@ void StageSelectScene::Update()
 #ifdef _DEBUG
 	ImGui::Begin("Stage Select");
 	ImGui::Text("LEFT / RIGHT: Select    SPACE: Start");
+
 	for (int32_t i = 0; i < stageManager_->GetStageCount(); ++i)
 	{
 		const StageData& stageData = stageManager_->GetStageData(i);
 		ImGui::Text("%s Stage %d : %s  [%s]", i == selectedStageIndex_ ? ">" : " ", i + 1,
 			stageData.name.c_str(), stageManager_->IsStageCleared(i) ? "CLEAR" : "NOT CLEAR");
 	}
+
 	ImGui::End();
 #endif
 }
@@ -137,10 +143,12 @@ void StageSelectScene::Draw()
 {
 	Sprite::PreDraw();
 	backgroundSprite_->Draw();
+
 	for (Sprite* stageCard : stageCards_)
 	{
 		stageCard->Draw();
 	}
+
 	selectorSprite_->Draw();
 	Sprite::PostDraw();
 

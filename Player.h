@@ -2,6 +2,7 @@
 #include "KamataEngine.h"
 #include "AABB.h"
 #include "GameTime.h"
+#include <array>
 #include <numbers>
 
 class MapChipField;
@@ -90,6 +91,7 @@ public:
 	void Respawn(const KamataEngine::Vector3& position, bool restoreHp = true);
 
 	// ツルへつかまる・ツルから離れるための処理
+	bool WantsToGrabVine() const;
 	void AttachToVine(const KamataEngine::Vector3& anchorPosition);
 	bool IsHangingFromVine(const KamataEngine::Vector3& anchorPosition) const;
 	float GetVineAngle() const { return vineAngle_; }
@@ -109,10 +111,27 @@ public:
 
 	// 敵に攻撃を当てたとき、空中行動を回復する
 	void OnAttackHit();
+	// 空中で触れたリングは常に取得できる。突進の保持数は1回が上限。
+	bool TryCollectAirRushRing();
+	bool IsOnGround() const { return onGround_; }
 	
 	bool IsRushAiming() const { return isRushAiming_; }
 
 	float GetRushAngle() const { return rushAngle_; }
+	bool IsJumpRushing() const { return isJumpRushing_; }
+	bool IsJumpRushEnding() const { return isJumpRushEnding_; }
+	bool IsAttachedToTraceVertex() const { return traceAimActive_; }
+	bool IsTraceAimDirectionValid() const;
+	uint64_t GetRushSequence() const { return rushSequence_; }
+	const KamataEngine::Vector3& GetRushStartPosition() const { return rushStartPosition_; }
+	const KamataEngine::Vector3& GetRushDirection() const { return rushDirection_; }
+	const KamataEngine::Vector3& GetPreviousPosition() const { return previousPosition_; }
+	bool CanStartRush() const;
+	void SnapToTraceVertex(const KamataEngine::Vector3& vertex,
+		const std::array<KamataEngine::Vector3, 2>& directions, int directionCount);
+	void FinishRushAtVertex(const KamataEngine::Vector3& vertex,
+		const std::array<KamataEngine::Vector3, 2>& nextDirections, int nextDirectionCount);
+	void DetachFromTraceVertex();
 
 	// ギミックからプレイヤーへ加える外力
 	void AddExternalVelocity(const KamataEngine::Vector3& velocity)
@@ -122,6 +141,12 @@ public:
 		velocity_.y += velocity.y * deltaFrames;
 		velocity_.z += velocity.z * deltaFrames;
 	}
+	// 上昇気流内では進入時の縦速度に関係なく、一定速度で上昇する。
+	void ApplyUpdraft(float upwardSpeed)
+	{
+		velocity_.y = upwardSpeed;
+		onGround_ = false;
+	}
 
 	// 移動足場・崩れる足場への着地処理
 	void LandOnGimmick(float topY, float horizontalMove);
@@ -130,6 +155,8 @@ public:
 
 	// 移動前後の位置から、固体ギミックとの衝突面を解決する
 	GimmickHitSide ResolveSolidGimmickCollision(const AABB& gimmickAABB, float horizontalMove, float verticalMove = 0.0f);
+	// 水車など、下面・側面を通過できる移動足場への上面着地
+	bool TryLandOnOneWayGimmick(const AABB& gimmickAABB, float horizontalMove, float verticalMove);
 
 private:
 	/// <summary>
@@ -197,7 +224,8 @@ private:
 	LRDirection lrDirection_ = LRDirection::kRight;
 
 	// 角
-	enum Corner {
+	enum Corner 
+	{
 		kRightBottom,	// 右下
 		kLeftBottom,	// 左下
 		kRightTop,		// 右上
@@ -302,6 +330,7 @@ private:
 
 	// ツルにつかまっている間の状態
 	bool isHanging_ = false;
+	bool detachedFromTraceThisFrame_ = false;
 	float vineDetachCooldown_ = 0.0f;
 	KamataEngine::Vector3 vineAnchorPosition_{};
 	float vineAngle_ = 0.0f;
@@ -342,6 +371,13 @@ private:
 
 	// ジャンプをチャージしているか
 	bool isRushAiming_ = false;
+	// 図形の頂点に吸い付いている間は、次の突進まで位置を保持する。
+	bool traceAimActive_ = false;
+	bool traceRushActive_ = false;
+	bool traceDirectionSelected_ = false;
+	KamataEngine::Vector3 traceAimAnchor_{};
+	std::array<KamataEngine::Vector3, 2> traceAimDirections_{};
+	int traceAimDirectionCount_ = 0;
 
 	// 方向選択を開始してからの実時間
 	float rushAimElapsedSeconds_ = 0.0f;
@@ -361,8 +397,14 @@ private:
 	bool isJumpRushing_ = false;
 	bool isJumpRushEnding_ = false;
 	float jumpRushFrame_ = 0.0f;
+	uint64_t rushSequence_ = 0;
+	KamataEngine::Vector3 rushStartPosition_{};
+	KamataEngine::Vector3 rushDirection_{};
 	static inline const float kJumpRushSpeed = 0.5f;
 	static inline const float kJumpRushFrame = 9.0f;
+	// 突進中に角をかすめたときだけ許す位置補正（マップ1マス=1.0）。
+	static inline const float kRushCornerCorrectionMax = 0.15f;
+	static inline const float kRushCornerCorrectionStep = 0.025f;
 	// 地上突進の発動時に、床との接触を切るため上へずらす量。
 	static inline const float kGroundRushLift = 0.15f;
 

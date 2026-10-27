@@ -14,8 +14,10 @@
 #include "SwitchLinkState.h"
 #include "TiledRoom.h"
 #include "WorldProgress.h"
+#include "RushAimScreenEffect.h"
 
 #include <string>
+#include <cstdint>
 
 class StageManager;
 class TriangleTraceGimmick;
@@ -71,7 +73,6 @@ public:
 	bool IsReloadRequested() const { return reloadRequested_; }
 
 	bool IsCleared() const { return isCleared_; }
-	bool IsStageSelectRequested() const { return stageSelectRequested_; }
 
 private:
 
@@ -101,9 +102,9 @@ private:
 	// 3Dモデルデータ
 	// プレイヤーの3Dモデルデータ
 	KamataEngine::Model* modelPlayer_ = nullptr;
+	KamataEngine::Model* modelPlayerFlash_ = nullptr;
 	
 	// プレイヤーの攻撃エフェクトの3Dモデルデータ
-	KamataEngine::Model* modelAttackEffect_ = nullptr;
 
 	// 敵に対してのヒットエフェクトの3Dモデルデータ
 	KamataEngine::Model* modelHitEffect_ = nullptr;
@@ -124,6 +125,7 @@ private:
 	KamataEngine::Model* modelBlock_ = nullptr;
 	KamataEngine::Model* modelCheckpoint_ = nullptr;
 	KamataEngine::Model* modelCheckpointJewel_ = nullptr;
+	KamataEngine::Model* modelGoal_ = nullptr;
 	KamataEngine::Model* modelTriangleEdge_ = nullptr;
 	KamataEngine::Model* modelTriangleFill_ = nullptr;
 	uint32_t triangleWhiteTexture_ = 0;
@@ -153,11 +155,12 @@ private:
 
 	KamataEngine::Sprite* jumpDirectionCursor_ = nullptr;
 	KamataEngine::Sprite* hudGuideSprite_ = nullptr;
+	std::vector<KamataEngine::Sprite*> hpIndicators_;
 
 	// ゲームオーバーの選択画面
 	KamataEngine::Sprite* gameOverOverlay_ = nullptr;
 	KamataEngine::Sprite* retryChoice_ = nullptr;
-	KamataEngine::Sprite* stageSelectChoice_ = nullptr;
+	KamataEngine::Sprite* titleChoice_ = nullptr;
 	KamataEngine::Sprite* gameOverSelector_ = nullptr;
 	bool isRetrySelected_ = true;
 
@@ -167,9 +170,20 @@ private:
 	float stageClearTimer_ = 0.0f;
 	static inline const float kStageClearDuration = 90.0f;
 	static inline const float kRushAimTimeScale = 0.2f;
+	// 画面演出の切り替え時間はゲーム内時間の減速に影響されない。
+	static inline const float kRushAimEffectFadeIn = 0.08f;
+	static inline const float kRushAimEffectFadeOut = 0.12f;
+	RushAimScreenEffect rushAimScreenEffect_;
+	bool rushAimScreenEffectReady_ = false;
+	float rushAimEffectStrength_ = 0.0f;
+	float rushAimEffectElapsed_ = 0.0f;
+	KamataEngine::Vector2 rushAimCenterUv_{0.5f, 0.5f};
 
 	// ワールドトランスフォーム
 	KamataEngine::WorldTransform worldTransform_;
+	KamataEngine::WorldTransform goalWorldTransform_;
+	KamataEngine::ObjectColor goalColor_;
+	float goalPulseSeconds_ = 0.0f;
 
 	// 1マスごとのブロック描画用トランスフォーム
 	std::vector<KamataEngine::WorldTransform*> blockTransforms_;
@@ -198,8 +212,10 @@ private:
 	bool LoadTiledRoom(const std::string& roomPath, const std::string& spawnId);
 	void ConfigureCameraForCurrentMap();
 	void UpdateGimmicksAndFallingRocks();
+	void UpdateCameraShakeEvents();
 	void UpdateLightGroup();
 	void CheckRoomTransitions();
+	void StartStageClear();
 	bool IsVisible(const AABB& bounds, float margin = 2.0f) const;
 
 	// 敵生成用の関数を追加
@@ -219,8 +235,9 @@ private:
 	
 	// リロード要求フラグ
 	bool reloadRequested_ = false;
-	bool stageSelectRequested_ = false;
-	bool isGameOverPending_ = false;
+	uint64_t lastDamageSequence_ = 0;
+	uint64_t lastRushSequence_ = 0;
+	uint64_t lastRingPickupSequence_ = 0;
 
 	// ステージマネージャ用の参照用のポインタ
 	StageManager* stageManager_ = nullptr;

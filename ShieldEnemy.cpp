@@ -57,8 +57,8 @@ void ShieldEnemy::BehaviorWalkUpdate()
 		guardEffectTimer_ = (std::max)(0.0f, guardEffectTimer_ - GameTime::GetDeltaSeconds());
 	}
 
-	// 移動
-	worldTransform_.translation_.x += velocity_.x * GameTime::GetDeltaFrames();
+	// 通常の歩行敵と同じ地形判定で床・壁・崖に対応する。
+	MoveGroundEnemy();
 
 	// タイマーを加算
 	walkTimer_ += GameTime::GetDeltaSeconds();
@@ -72,8 +72,9 @@ void ShieldEnemy::BehaviorWalkUpdate()
 	// 度をラジアンに変換 (通常の公式)
 	float wobbleRadian = wobbleDegree * (std::numbers::pi_v<float> / 180.0f);
 
-	// 初期角度（-90度 = -π/2）に、揺れの角度を足してY軸に適用する
-	worldTransform_.rotation_.y = (std::numbers::pi_v<float> / -2.0f) + wobbleRadian;
+	// 折り返した際も盾が進行方向を向くようにする。
+	const float facing = velocity_.x >= 0.0f ? 1.0f : -1.0f;
+	worldTransform_.rotation_.y = facing * std::numbers::pi_v<float> * 0.5f + wobbleRadian;
 
 	// 行列更新 (親クラスの関数を呼び出す)
 	UpdateMatrix();
@@ -111,7 +112,7 @@ void ShieldEnemy::OnCollision(Player* player)
 			}
 
 			// プレイヤーのノックバックを要求する
-			player->RequestKnockback();
+			player->RequestKnockback(worldTransform_.translation_.x);
 
 			// のけぞり演出へ移行する
 			BehaviorGuardInitialize();
@@ -135,6 +136,9 @@ void ShieldEnemy::BehaviorGuardInitialize()
 // ガード行動の更新（のけぞりアニメーション）
 void ShieldEnemy::BehaviorGuardUpdate()
 {
+	// ガード中は横移動を止めるが、床・天井との当たり判定は続ける。
+	MoveGroundEnemy(false);
+
 	// タイマーを加算
 	guardTimer_ += GameTime::GetDeltaSeconds();
 

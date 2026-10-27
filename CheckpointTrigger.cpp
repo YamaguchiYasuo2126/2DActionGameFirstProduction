@@ -73,7 +73,8 @@ void CheckpointTrigger::OnPlayerCollision(Player* player)
 		return;
 	}
 
-	if (!progress_->HasFlag(progressFlag_))
+	// 一度起動した地点へ戻った場合も、現在の復活地点として選び直せる。
+	if (!progress_->IsCurrentCheckpoint(roomPath_, checkpointId_))
 	{
 		progress_->ActivateCheckpoint(roomPath_, checkpointId_, worldTransform_.translation_);
 	}

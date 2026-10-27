@@ -87,6 +87,9 @@
     <ClCompile Include="BaseEffect.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="RushAimScreenEffect.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="BaseGimmick.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -94,9 +97,6 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="ClearScene.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="StageSelectScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="StageGimmick.cpp">
@@ -142,6 +142,9 @@
     <None Include="Resources\shaders\Sprite.hlsli">
       <Filter>シェーダー ファイル</Filter>
     </None>
+    <None Include="Resources\shaders\RushAimScreen.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
     <None Include="Resources\shaders\Shape.hlsli">
       <Filter>シェーダー ファイル</Filter>
     </None>
@@ -157,6 +160,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GameScene.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="RushAimScreenEffect.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="CheckpointGate.h">
@@ -250,9 +256,6 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="ClearScene.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="StageSelectScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="StageGimmick.h">

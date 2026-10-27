@@ -190,6 +190,8 @@ void StageGimmick::Initialize(Model* model, Model* lightningModel,
 	else if (type_ == GimmickType::kAirRushRing)
 	{
 		modelWorldTransform_.scale_ = {0.5f, 0.5f, 0.5f};
+		// 地形の前面より手前へ出し、近くのブロックに隠れないようにする。
+		modelOffset_.z = -0.65f;
 	}
 	else if (type_ == GimmickType::kAirRushSwitch)
 	{
@@ -331,7 +333,7 @@ void StageGimmick::UpdateAirRushRing()
 	}
 
 	// エフェクト中に着地しても、エフェクトが終わるまでは再表示しない。
-	if (ringCollector_ && ringCollector_->IsOnGround())
+	if (ringCollector_ && ringCollector_->GetLandingSequence() != ringPickupLandingSequence_)
 	{
 		ringLandedAfterPickup_ = true;
 	}
@@ -744,7 +746,7 @@ void StageGimmick::OnPlayerCollision(Player* player)
 		// 攻撃範囲だけが重なった場合は被弾させず、本体との接触だけを判定する。
 		if (MyMathUtility::IsCollision(player->GetAABB(), GetAABB()))
 		{
-			player->OnHazardCollision();
+			player->OnHazardCollision(worldTransform_.translation_.x);
 		}
 		break;
 
@@ -787,7 +789,7 @@ void StageGimmick::OnPlayerCollision(Player* player)
 	case GimmickType::kThunderCloud:
 		if (IsThunderStriking())
 		{
-			player->OnHazardCollision();
+			player->OnHazardCollision(worldTransform_.translation_.x);
 		}
 		break;
 
@@ -798,6 +800,7 @@ void StageGimmick::OnPlayerCollision(Player* player)
 		{
 			ringState_ = RingState::kBursting;
 			ringCollector_ = player;
+			ringPickupLandingSequence_ = player->GetLandingSequence();
 			ringEffectSeconds_ = 0.0f;
 			ringLandedAfterPickup_ = false;
 			UpdateAirRushRingEffect(0.0f);

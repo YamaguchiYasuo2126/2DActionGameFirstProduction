@@ -4,6 +4,7 @@
 
 class Player;
 class GameScene;
+class MapChipField;
 
 /// <summary>
 /// 敵
@@ -47,6 +48,7 @@ public:
 
 	// ゲームシーンをセットするsetterを追加
 	void SetGameScene(GameScene* gameScene) { gameScene_ = gameScene; }
+	void SetMapChipField(MapChipField* mapChipField) { mapChipField_ = mapChipField; }
 
 protected:
 	
@@ -66,6 +68,16 @@ protected:
 	/// 行列の更新と転送
 	/// </summary>
 	void UpdateMatrix();
+	struct TerrainHit
+	{
+		bool wall = false;
+		bool floor = false;
+		bool ceiling = false;
+	};
+	TerrainHit MoveWithMapCollision(float moveX, float moveY);
+	void MoveGroundEnemy(bool moveHorizontally = true);
+	bool IsSolidPoint(float x, float y) const;
+	bool IsBlockedAt(float x, float y) const;
 
 protected:
 	// 振るまい
@@ -95,6 +107,9 @@ protected:
 
 	// 速度
 	KamataEngine::Vector3 velocity_ = {};
+	MapChipField* mapChipField_ = nullptr;
+	static inline const float kGravityAcceleration = 0.01f;
+	static inline const float kMaxFallSpeed = 0.2f;
 
 	// 最初の角度[度]
 	static inline const float kWalkMotionAngleStart = 5.0f;

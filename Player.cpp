@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include "Player.h"
+#include "BaseEnemy.h"
 #include "EasingUtility.h"
 #include "MapChipField.h"
 #include "MyMathUtility.h"
@@ -18,21 +19,54 @@ Vector3 operator+(const Vector3& v1, const Vector3& v2) { return Vector3{v1.x + 
 Vector3 operator-(const Vector3& v) { return {-v.x, -v.y, -v.z}; }
 Vector3 operator+(const Vector3& v) { return v; }
 
-void Player::Initialize(Model* model, Model* modelAttack, Camera* camera, const Vector3& position)
+namespace {
+constexpr float kRushAfterimageSeconds = 0.18f;
+constexpr float kRushGrainSeconds = 0.20f;
+constexpr float kRushVisualStepSeconds = 0.028f;
+
+void TransferEffectTransform(WorldTransform& transform)
+{
+	transform.matWorld_ = MyMathUtility::MakeAffineMatrix(
+		transform.scale_, transform.rotation_, transform.translation_);
+	transform.TransferMatrix();
+}
+}
+
+void Player::Initialize(Model* model, Model* rushBoxEffectModel, Model* rushBoardEffectModel, Camera* camera,
+	const Vector3& position, Model* modelFlash)
 {
 
 	// NULLポインタチェック
 	assert(model);
 
 	model_ = model;
-	modelAttack_ = modelAttack;
+	modelFlash_ = modelFlash;
+	rushBoxEffectModel_ = rushBoxEffectModel;
+	rushBoardEffectModel_ = rushBoardEffectModel;
 	camera_ = camera;
+	if (modelFlash_)
+	{
+		whiteTextureHandle_ = TextureManager::Load("white1x1.png");
+	}
+	damageVisualColor_.Initialize();
+	rushBoxColor_.Initialize();
+	rushBoxColor_.SetColor({0.25f, 0.90f, 1.0f, 0.85f});
+	rushBoardColor_.Initialize();
+	rushBoardColor_.SetColor({0.9f, 1.0f, 1.0f, 0.8f});
 
 	// ワールドトランスフォームの初期化
 	worldTransform_.Initialize();
 
-	// エフェクトのトランスフォームの初期化
-	worldTransformAttack_.Initialize();
+	for (auto& grain : rushGrains_)
+	{
+		grain.transform.Initialize();
+	}
+	for (auto& afterimage : rushAfterimages_)
+	{
+		afterimage.transform.Initialize();
+		afterimage.color.Initialize();
+	}
+	ClearRushVisuals();
 
 	worldTransform_.translation_ = position;
 	previousPosition_ = position;
@@ -46,6 +80,7 @@ void Player::Update()
 {
 	// ギミックとの衝突面を判定するため、移動前の位置を保存する。
 	previousPosition_ = worldTransform_.translation_;
+	UpdateRushVisuals(GameTime::GetDeltaSeconds());
 	detachedFromTraceThisFrame_ = false;
 	if (vineDetachCooldown_ > 0)
 	{
@@ -55,6 +90,14 @@ void Player::Update()
 	if (damageInvincibleTimer_ > 0)
 	{
 		damageInvincibleTimer_ = (std::max)(0.0f, damageInvincibleTimer_ - GameTime::GetDeltaFrames());
+		if (damageInvincibleTimer_ == 0.0f)
+		{
+			damageFlashActive_ = false;
+		}
+	}
+	if (damageRedTimer_ > 0)
+	{
+		damageRedTimer_ = (std::max)(0.0f, damageRedTimer_ - GameTime::GetDeltaFrames());
 	}
 
 	if (isHanging_)
@@ -84,11 +127,6 @@ void Player::Update()
 			BehaviorRootInitialize();
 
 			break;
-		case Behavior::kAttack:
-			// 攻撃ビヘイビアの初期化
-			BehaviorAttackInitialize();
-
-			break;
 		case Behavior::kKnockback:
 			// ノックバックビヘイビアの初期化
 			BehaviorKnockbackInitialize();
@@ -108,15 +146,116 @@ void Player::Update()
 		BehaviorRootUpdate();
 		break;
 
-	case Behavior::kAttack:
-		// 攻撃行動更新
-		BehaviorAttackUpdate();
-		break;
-
 	case Behavior::kKnockback:
 		// ノックバック行動開始
 		BehaviorKnockbackUpdate();
 		break;
+	}
+}
+
+void Player::ClearRushVisuals()
+{
+	rushVisualIntervalSeconds_ = 0.0f;
+	nextRushGrain_ = 0;
+	nextRushAfterimage_ = 0;
+	for (auto& grain : rushGrains_)
+	{
+		grain.remainingSeconds = 0.0f;
+	}
+	for (auto& afterimage : rushAfterimages_)
+	{
+		afterimage.remainingSeconds = 0.0f;
+	}
+}
+
+void Player::UpdateRushVisuals(float deltaSeconds)
+{
+	for (auto& grain : rushGrains_)
+	{
+		if (grain.remainingSeconds <= 0.0f)
+		{
+			continue;
+		}
+		grain.remainingSeconds = (std::max)(0.0f, grain.remainingSeconds - deltaSeconds);
+		if (grain.remainingSeconds <= 0.0f)
+		{
+			continue;
+		}
+		grain.transform.translation_.x += grain.velocity.x * deltaSeconds;
+		grain.transform.translation_.y += grain.velocity.y * deltaSeconds;
+		const float fade = grain.remainingSeconds / grain.durationSeconds;
+		grain.transform.scale_ = grain.board
+			? Vector3{grain.size * fade, grain.size * 0.32f * fade, 0.025f}
+			: Vector3{grain.size * fade, grain.size * fade, grain.size * fade};
+		TransferEffectTransform(grain.transform);
+	}
+	for (auto& afterimage : rushAfterimages_)
+	{
+		if (afterimage.remainingSeconds <= 0.0f)
+		{
+			continue;
+		}
+		afterimage.remainingSeconds = (std::max)(0.0f, afterimage.remainingSeconds - deltaSeconds);
+		const float fade = afterimage.remainingSeconds / kRushAfterimageSeconds;
+		afterimage.color.SetColor({0.18f, 0.9f, 1.0f, 0.42f * fade});
+	}
+}
+
+void Player::SpawnRushGrain(bool board, float spread)
+{
+	auto& grain = rushGrains_[nextRushGrain_];
+	nextRushGrain_ = (nextRushGrain_ + 1) % rushGrains_.size();
+	grain.board = board;
+	grain.durationSeconds = kRushGrainSeconds;
+	grain.remainingSeconds = kRushGrainSeconds;
+	grain.size = board ? 0.18f : 0.10f;
+	const float sideX = -rushDirection_.y;
+	const float sideY = rushDirection_.x;
+	grain.transform.translation_ = {
+		worldTransform_.translation_.x - rushDirection_.x * 0.32f + sideX * spread * 0.17f,
+		worldTransform_.translation_.y - rushDirection_.y * 0.32f + sideY * spread * 0.17f,
+		worldTransform_.translation_.z - 0.10f};
+	grain.transform.rotation_ = {0.0f, 0.0f, std::atan2(rushDirection_.y, rushDirection_.x)};
+	grain.velocity = {-rushDirection_.x * 1.8f + sideX * spread * 1.1f,
+		-rushDirection_.y * 1.8f + sideY * spread * 1.1f, 0.0f};
+	grain.transform.scale_ = board
+		? Vector3{grain.size, grain.size * 0.32f, 0.025f}
+		: Vector3{grain.size, grain.size, grain.size};
+	TransferEffectTransform(grain.transform);
+}
+
+void Player::CaptureRushAfterimage()
+{
+	if (!modelFlash_)
+	{
+		return;
+	}
+	auto& afterimage = rushAfterimages_[nextRushAfterimage_];
+	nextRushAfterimage_ = (nextRushAfterimage_ + 1) % rushAfterimages_.size();
+	afterimage.remainingSeconds = kRushAfterimageSeconds;
+	afterimage.transform.translation_ = worldTransform_.translation_;
+	// 本体より少し奥に置き、本体の手前を残像が覆わないようにする。
+	afterimage.transform.translation_.z += 0.10f;
+	afterimage.transform.rotation_ = worldTransform_.rotation_;
+	afterimage.transform.scale_ = worldTransform_.scale_;
+	afterimage.color.SetColor({0.18f, 0.9f, 1.0f, 0.42f});
+	TransferEffectTransform(afterimage.transform);
+}
+
+void Player::EmitRushVisuals()
+{
+	rushVisualIntervalSeconds_ -= GameTime::GetDeltaSeconds();
+	// 大きなフレーム間隔でも粒の生成数を制限し、残像プールを使い切らない。
+	for (int emitted = 0; rushVisualIntervalSeconds_ <= 0.0f && emitted < 3; ++emitted)
+	{
+		CaptureRushAfterimage();
+		SpawnRushGrain(false, emitted % 2 == 0 ? -1.0f : 1.0f);
+		SpawnRushGrain(true, emitted % 2 == 0 ? 1.0f : -1.0f);
+		rushVisualIntervalSeconds_ += kRushVisualStepSeconds;
+	}
+	if (rushVisualIntervalSeconds_ < 0.0f)
+	{
+		rushVisualIntervalSeconds_ = 0.0f;
 	}
 }
 
@@ -128,16 +267,16 @@ void Player::MoveInput()
 	{
 		isJumpRushing_ = false;
 		isJumpRushEnding_ = false;
-		isAttackEffectVisible_ = false;
 		traceRushActive_ = false;
 	}
 
 	Input* input = Input::GetInstance();
 	const bool isRightPushed = input->PushKey(DIK_RIGHT) || input->PushKey(DIK_D) || GamePadInput::IsRightPushed();
 	const bool isLeftPushed = input->PushKey(DIK_LEFT) || input->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
-	const bool isJumpPushed = input->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
-	const bool isJumpTriggered = input->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
-	const bool isNormalJumpTriggered = input->TriggerKey(DIK_W) || input->TriggerKey(DIK_UP);
+	const bool isRushPushed = input->PushKey(DIK_SPACE) || GamePadInput::IsRushPushed();
+	const bool isRushTriggered = input->TriggerKey(DIK_SPACE) || GamePadInput::IsRushTriggered();
+	const bool isNormalJumpTriggered = input->TriggerKey(DIK_W) || input->TriggerKey(DIK_UP) ||
+		GamePadInput::IsNormalJumpTriggered();
 	const bool detachFromTrace = (traceAimActive_ || traceRushActive_) &&
 		(input->TriggerKey(DIK_E) || GamePadInput::IsGrabTriggered());
 	if (detachFromTrace)
@@ -167,7 +306,7 @@ void Player::MoveInput()
 
 
 	// 方向選択と突進中は方向入力を通常移動に使わない。
-	if (!isRushAiming_ && !isJumpRushing_ && !isJumpTriggered && !traceAimActive_)
+	if (!isRushAiming_ && !isJumpRushing_ && !isRushTriggered && !traceAimActive_)
 	{
 		if (isRightPushed != isLeftPushed)
 		{
@@ -226,8 +365,8 @@ void Player::MoveInput()
 		onGround_ = false;
 	}
 
-	// Spaceを押していないときのW/↑は、方向選択のない即時ジャンプとする。
-	if (!isJumpPushed && !isRushAiming_ && !isJumpRushing_ && onGround_ && isNormalJumpTriggered)
+	// W/↑またはゲームパッドXは、方向選択のない即時ジャンプとする。
+	if (!isRushPushed && !isRushAiming_ && !isJumpRushing_ && onGround_ && isNormalJumpTriggered)
 	{
 		velocity_.y = kNormalJumpSpeed;
 		onGround_ = false;
@@ -236,7 +375,7 @@ void Player::MoveInput()
 
 	// Spaceを押した瞬間に方向選択を開始する。輪郭上でも方向はプレイヤーが選ぶ。
 	if (!detachFromTrace && !isRushAiming_ && !isJumpRushing_ &&
-		(onGround_ || canAirRush_) && isJumpTriggered)
+		(onGround_ || canAirRush_) && isRushTriggered)
 	{
 
 		// 空中から方向選択を開始した場合は、この時点で使用回数を消費する。
@@ -265,7 +404,7 @@ void Player::MoveInput()
 		const bool isRushAimTimeExpired = rushAimElapsedSeconds_ >= kRushAimMaxSeconds;
 
 		// Spaceを離すか、制限時間が経過したら発動する。
-		const bool shouldLaunchRush = !isJumpPushed || isRushAimTimeExpired;
+		const bool shouldLaunchRush = !isRushPushed || isRushAimTimeExpired;
 
 		if (!shouldLaunchRush) 
 		{
@@ -285,12 +424,7 @@ void Player::MoveInput()
 			}
 			else
 			{
-				Vector2 stickDirection{};
-				if (GamePadInput::GetLeftStickDirection(stickDirection))
-				{
-					directionX = stickDirection.x > 0.0f ? 1 : stickDirection.x < 0.0f ? -1 : 0;
-					directionY = stickDirection.y > 0.0f ? 1 : stickDirection.y < 0.0f ? -1 : 0;
-				}
+				GamePadInput::GetAimDirection(directionX, directionY);
 			}
 
 			if (directionX != 0 || directionY != 0)
@@ -353,7 +487,7 @@ void Player::MoveInput()
 				rushAimElapsedSeconds_ = 0.0f;
 				isJumpRushing_ = true;
 				isJumpRushEnding_ = false;
-				isAttackEffectVisible_ = true;
+				rushVisualIntervalSeconds_ = 0.0f;
 				jumpRushFrame_ = 0;
 				rushStartPosition_ = worldTransform_.translation_;
 				rushDirection_ = {directionX, directionY, 0.0f};
@@ -430,7 +564,6 @@ void Player::FinishRushAtVertex(const Vector3& vertex,
 	canAirRush_ = true;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
-	isAttackEffectVisible_ = false;
 	traceAimActive_ = nextDirectionCount > 0;
 	traceRushActive_ = false;
 	traceDirectionSelected_ = false;
@@ -450,7 +583,6 @@ void Player::DetachFromTraceVertex()
 	isRushAiming_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
-	isAttackEffectVisible_ = false;
 	rushAimElapsedSeconds_ = 0.0f;
 	velocity_ = {};
 	onGround_ = false;
@@ -482,7 +614,6 @@ void Player::AttachToVine(const Vector3& anchorPosition)
 	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
-	isAttackEffectVisible_ = false;
 	onGround_ = false;
 	velocity_ = {};
 }
@@ -509,7 +640,6 @@ void Player::LaunchFromFountain(float launchVelocity)
 	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
-	isAttackEffectVisible_ = false;
 }
 
 void Player::UpdateHanging()
@@ -517,7 +647,7 @@ void Player::UpdateHanging()
 	const float deltaFrames = GameTime::GetDeltaFrames();
 	const bool isLeftPushed = Input::GetInstance()->PushKey(DIK_LEFT) || Input::GetInstance()->PushKey(DIK_A) || GamePadInput::IsLeftPushed();
 	const bool isRightPushed = Input::GetInstance()->PushKey(DIK_RIGHT) || Input::GetInstance()->PushKey(DIK_D) || GamePadInput::IsRightPushed();
-	const bool isJumpTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
+	const bool isRushTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsRushTriggered();
 
 	if (isLeftPushed)
 	{
@@ -539,7 +669,7 @@ void Player::UpdateHanging()
 	worldTransform_.translation_.y = vineAnchorPosition_.y - std::cos(vineAngle_) * kVineLength;
 	velocity_ = {};
 
-	if (isJumpTriggered)
+	if (isRushTriggered)
 	{
 		// 振り子の接線方向へ勢いを付けてツルから離れる。
 		velocity_.x = std::cos(vineAngle_) * kVineLength * vineAngularVelocity_;
@@ -1177,6 +1307,7 @@ void Player::ContactToGroundStateSwitch(const CollisionMapInfo& info)
 		velocity_.y = 0.0f;
 		// 接地状態に移行
 		onGround_ = true;
+		++landingSequence_;
 		canAirRush_ = true;
 	}
 }
@@ -1190,8 +1321,6 @@ void Player::UpdateMatrix()
 	worldTransform_.TransferMatrix();
 
 	// 攻撃エフェクトの行列計算と転送
-	worldTransformAttack_.matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransformAttack_.scale_, worldTransformAttack_.rotation_, worldTransformAttack_.translation_);
-	worldTransformAttack_.TransferMatrix();
 }
 
 // ワールド座標を取得
@@ -1209,6 +1338,10 @@ Vector3 Player::GetWorldPosition()
 
 void Player::LandOnGimmick(float topY, float horizontalMove)
 {
+	if (!onGround_)
+	{
+		++landingSequence_;
+	}
 	// 足場の移動量を座標へ一度だけ反映する。
 	// 速度にも同じ値を入れると、次フレームに二重に運ばれてしまう。
 	worldTransform_.translation_.x += horizontalMove;
@@ -1481,70 +1614,95 @@ Player::GimmickHitSide Player::ResolveSolidGimmickCollision(const AABB& gimmickA
 // 攻撃用のAABBを取得
 AABB Player::GetAttackAABB()
 {
-	Vector3 attackCenter = GetWorldPosition();
-	float attackWidth = kRushAttackSize;
-	float attackHeight = kRushAttackSize;
-	if (!isJumpRushing_)
-	{
-		// ゲームパッドXで残している従来攻撃は、従来どおり上方向の判定を使う。
-		attackCenter = attackCenter + Vector3{0.0f, kAttackHitOffsetY, 0.0f};
-		attackWidth = kAttackHitWidth;
-		attackHeight = kAttackHitHeight;
-	}
+	const Vector3 attackCenter = GetWorldPosition();
+	// 突進中はプレイヤーの周囲全体を攻撃範囲にする。
+	const float halfSize = kRushAttackSize * 0.5f;
 
 	AABB aabb;
-	aabb.min = {attackCenter.x - attackWidth / 2.0f, attackCenter.y - attackHeight / 2.0f, attackCenter.z - attackWidth / 2.0f};
-	aabb.max = {attackCenter.x + attackWidth / 2.0f, attackCenter.y + attackHeight / 2.0f, attackCenter.z + attackWidth / 2.0f};
+	aabb.min = {attackCenter.x - halfSize, attackCenter.y - halfSize, attackCenter.z - halfSize};
+	aabb.max = {attackCenter.x + halfSize, attackCenter.y + halfSize, attackCenter.z + halfSize};
 
 	return aabb;
 }
 
-void Player::OnCollision(const BaseEnemy* enemy)
+void Player::OnCollision(BaseEnemy* enemy)
 {
-	(void)enemy;
-
-	if (IsAttack())
+	if (!enemy || IsAttack())
 	{
 		return; // 攻撃中はダメージ無効
 	}
 
-	TakeDamage(1);
+	TakeDamage(1, enemy->GetWorldPosition().x);
 }
 
-void Player::OnHazardCollision()
+void Player::OnHazardCollision(float sourceX)
 {
-	TakeDamage(1);
+	TakeDamage(1, sourceX);
 }
 
-void Player::TakeDamage(int32_t damage)
+void Player::TakeDamage(int32_t damage, float sourceX)
 {
-	if (damageInvincibleTimer_ > 0 || isDead_)
+	if (damage <= 0 || damageInvincibleTimer_ > 0 || isDead_)
 	{
 		return;
 	}
 
 	hp_ = (std::max)(0, hp_ - damage);
+	++damageSequence_;
 	damageInvincibleTimer_ = kDamageInvincibleFrames;
+	damageFlashActive_ = true;
+	damageRedTimer_ = kDamageRedFrames;
 	if (hp_ == 0)
 	{
 		isDead_ = true;
 	}
 	else
 	{
-		// 残りHPがある間は、ゲームシーンにチェックポイント復活を依頼する。
-		isRespawnRequested_ = true;
+		RequestKnockback(sourceX);
 	}
 }
 
-bool Player::ConsumeRespawnRequest()
+void Player::RequestKnockback(float sourceX)
 {
-	const bool requested = isRespawnRequested_;
-	isRespawnRequested_ = false;
-	return requested;
+	if (isDead_ || isKnockbackRequested_ || behavior_ == Behavior::kKnockback)
+	{
+		return;
+	}
+	const float playerX = GetWorldPosition().x;
+	constexpr float kSideEpsilon = 0.01f;
+	if (playerX < sourceX - kSideEpsilon)
+	{
+		knockbackDirection_ = -1.0f;
+	}
+	else if (playerX > sourceX + kSideEpsilon)
+	{
+		knockbackDirection_ = 1.0f;
+	}
+	else if (previousPosition_.x < sourceX - kSideEpsilon)
+	{
+		knockbackDirection_ = -1.0f;
+	}
+	else if (previousPosition_.x > sourceX + kSideEpsilon)
+	{
+		knockbackDirection_ = 1.0f;
+	}
+	else if (std::abs(velocity_.x) > kSideEpsilon)
+	{
+		knockbackDirection_ = velocity_.x > 0.0f ? -1.0f : 1.0f;
+	}
+	else
+	{
+		knockbackDirection_ = lrDirection_ == LRDirection::kRight ? -1.0f : 1.0f;
+	}
+	// ツルにつかまっていても次の更新でノックバックへ移れるようにする。
+	isHanging_ = false;
+	isKnockbackRequested_ = true;
 }
 
 void Player::Respawn(const Vector3& position, bool restoreHp)
 {
+	// 取得済みのリングは、死亡後の復活でも再出現できるようにする。
+	++landingSequence_;
 	worldTransform_.translation_ = position;
 	previousPosition_ = position;
 	velocity_ = {};
@@ -1555,8 +1713,13 @@ void Player::Respawn(const Vector3& position, bool restoreHp)
 	}
 
 	isDead_ = false;
-	isRespawnRequested_ = false;
+	isKnockbackRequested_ = false;
+	knockbackDirection_ = 0.0f;
+	knockbackParameter_ = 0.0f;
 	damageInvincibleTimer_ = kDamageInvincibleFrames;
+	// 部屋移動やチェックポイント復活にも無敵時間はあるが、被弾演出は出さない。
+	damageFlashActive_ = false;
+	damageRedTimer_ = 0.0f;
 	onGround_ = false;
 	canAirRush_ = true;
 	isHanging_ = false;
@@ -1569,37 +1732,19 @@ void Player::Respawn(const Vector3& position, bool restoreHp)
 	jumpRushFrame_ = 0;
 	behavior_ = Behavior::kRoot;
 	behaviorRequest_ = Behavior::kUnknown;
-	isAttackEffectVisible_ = false;
+	ClearRushVisuals();
 	UpdateMatrix();
 }
 
 // 通常行動初期化
-void Player::BehaviorRootInitialize() { isAttackEffectVisible_ = false; }
+void Player::BehaviorRootInitialize() {}
 
 // 通常行動更新
 void Player::BehaviorRootUpdate()
 {
 
 	if (onGround_) {
-		isAttackedInAir_ = false;
 		canAirRush_ = true;
-	}
-
-	// Spaceは突進ジャンプ専用。ゲームパッドXの従来攻撃だけ互換操作として残す。
-	if (!traceAimActive_ && !isRushAiming_ && !isJumpRushing_ && GamePadInput::IsAttackTriggered())
-	{
-		if (!onGround_ && isAttackedInAir_)
-		{
-
-		} else {
-			// 攻撃ビヘイビアをリクエスト
-			behaviorRequest_ = Behavior::kAttack;
-			// もし空中で攻撃したならフラグをtrueにする
-			if (!onGround_)
-			{
-				isAttackedInAir_ = true;
-			}
-		}
 	}
 
 	// 移動入力の処理を呼び出す
@@ -1649,11 +1794,6 @@ void Player::BehaviorRootUpdate()
 			isJumpRushEnding_ = true;
 		}
 
-		// 突進中の攻撃表示はプレイヤー中心に置く。
-		worldTransformAttack_.translation_ = worldTransform_.translation_;
-		worldTransformAttack_.rotation_ = {};
-		worldTransformAttack_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
-		worldTransformAttack_.scale_ = {kRushAttackSize, kRushAttackSize, kRushAttackSize};
 	}
 
 	// 旋回制御
@@ -1683,155 +1823,16 @@ void Player::BehaviorRootUpdate()
 
 	// 行列更新
 	UpdateMatrix();
-}
-
-// 攻撃行動初期化
-void Player::BehaviorAttackInitialize() 
-{
-	isJumpRushing_ = false;
-	isJumpRushEnding_ = false;
-	worldTransformAttack_.scale_ = {1.0f, 1.0f, 1.0f};
-	// カウンター初期化
-	attackParameter_ = 0.0f;
-
-	// フェーズを溜めからスタートさせる
-	attackPhase_ = AttackPhase::kCharge;
-
-	velocity_ = {};
-
-	isAttackEffectVisible_ = false;
-	hasHitEnemyDuringAttack_ = false;
-	SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerAttack);
-}
-
-// 攻撃行動更新
-void Player::BehaviorAttackUpdate()
-{
-	attackParameter_ += GameTime::GetDeltaFrames();
-
-	// 攻撃動作用の速度
-	Vector3 velocity{};
-
-	switch (attackPhase_) 
+	if (isJumpRushing_ && !isJumpRushEnding_)
 	{
-
-		// 溜め動作
-	case AttackPhase::kCharge:
-	default:
-	{
-		isAttackEffectVisible_ = false;
-		float t = static_cast<float>(attackParameter_) / kAttackChargeTimer;
-		worldTransform_.scale_.z = EasingUtility::EaseOut(1.0f, 0.3f, t);
-		worldTransform_.scale_.y = EasingUtility::EaseOut(1.0f, 1.6f, t);
-
-		velocity.x = 0.0f;
-
-		// 前進動作へ移行
-		if (attackParameter_ >= kAttackChargeTimer) 
-		{
-			attackPhase_ = AttackPhase::kRush;
-			attackParameter_ = 0.0f; // カウンターをリセット
-		}
-		break;
+		EmitRushVisuals();
 	}
-
-		// 突進動作
-	case AttackPhase::kRush: 
-	{
-		// 突進と余韻中はエフェクトを表示
-		isAttackEffectVisible_ = true;
-
-		float t = static_cast<float>(attackParameter_) / kRushTimer;
-		worldTransform_.scale_.z = EasingUtility::EaseOut(0.3f, 1.3f, t);
-		worldTransform_.scale_.y = EasingUtility::EaseOut(1.6f, 0.7f, t);
-
-		// 横移動はしない
-		velocity.x = 0.0f;
-
-		// 上方向へ少し浮きながら攻撃する
-		velocity.y = kAttackRiseSpeed;
-
-		// 指定時間が経過したら余韻動作へ移行
-		if (attackParameter_ >= kRushTimer)
-		{
-			attackPhase_ = AttackPhase::kReverberation;
-			attackParameter_ = 0.0f; // カウンターをリセット
-		}
-
-		break;
-	}
-		// 余韻動作
-	case AttackPhase::kReverberation:
-	{
-		// 突進と余韻中はエフェクトを表示
-		isAttackEffectVisible_ = true;
-		float t = static_cast<float>(attackParameter_) / kReverberationTimer;
-		worldTransform_.scale_.z = EasingUtility::EaseOut(1.3f, 1.0f, t);
-		worldTransform_.scale_.y = EasingUtility::EaseOut(0.7f, 1.0f, t);
-
-		velocity.x = 0.0f;
-
-		// 余韻が終わったら通常状態(Root)に戻す
-		if (attackParameter_ >= kReverberationTimer)
-		{
-			behaviorRequest_ = Behavior::kRoot;
-			attackParameter_ = 0.0f;
-		}
-
-		break;
-	}
-	}
-
-	// 既存のマップ衝突判定と移動処理を走らせる
-	CollisionMapInfo collisionMapInfo;
-
-	if (velocity.y > 0.0f)
-	{
-		onGround_ = false;
-	}
-
-	collisionMapInfo.move = MyMathUtility::Multiply(GameTime::GetDeltaFrames(), velocity);
-
-	// マップ衝突チェック
-	CheckMapCollision(collisionMapInfo);
-
-	// 判定結果を反映して移動させる
-	JudgmentResultReflectionMove(collisionMapInfo);
-
-	// 各種接触・接地状態の切り替え処理
-	ContactToCeiling(collisionMapInfo);
-	ContactToWall(collisionMapInfo);
-	ContactToGroundStateSwitch(collisionMapInfo);
-
-	// 敵にヒットしていない攻撃だけ、空中攻撃を消費した状態にする。
-	// ヒット後に isAttackedInAir_ を再び true に戻さないことが重要。
-	if (!onGround_ && !hasHitEnemyDuringAttack_)
-	{
-		isAttackedInAir_ = true;
-	}
-
-	// 移動後のプレイヤー座標に合わせて、攻撃エフェクトを上側へ配置する
-	worldTransformAttack_.translation_ = worldTransform_.translation_ + Vector3{0.0f, kAttackHitOffsetY, 0.0f};
-	// 攻撃エフェクトは正面向きの平面モデルなので、プレイヤーの左右反転を引き継がない。
-	// 左向き時に裏面の法線がライティングされて黒くなることを防ぐ。
-	worldTransformAttack_.rotation_ = {};
-	worldTransformAttack_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
-
-	// 行列更新
-	UpdateMatrix();
 }
 
 void Player::OnAttackHit()
 {
-	// 空中攻撃を再び可能にする
-	isAttackedInAir_ = false;
-	hasHitEnemyDuringAttack_ = true;
-
-	// 攻撃成功で空中の方向選択突進を1回分回復する。
+	// 突進が敵に当たったら、空中での方向選択突進を1回分回復する。
 	canAirRush_ = true;
-
-	// 攻撃アニメーションは中断せず、kReverberation の終了まで継続する。
-	// 通常状態への遷移は BehaviorAttackUpdate() 側に任せる。
 }
 
 bool Player::TryCollectAirRushRing()
@@ -1842,6 +1843,7 @@ bool Player::TryCollectAirRushRing()
 	}
 	// 既に使用可能でも2回分には増やさず、1回分を満たすだけにする。
 	canAirRush_ = true;
+	++ringPickupSequence_;
 	return true;
 }
 
@@ -1854,18 +1856,14 @@ void Player::BehaviorKnockbackInitialize()
 	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
-	// 攻撃エフェクトを消す
-	isAttackEffectVisible_ = false;
 
-	// 攻撃中に中断されたときのためにスケールをデフォルトに戻す
+	// ノックバック時の表示スケールをデフォルトに戻す。
 	worldTransform_.scale_ = {1.0f, 1.0f, 1.0f};
 
-	// 後ろに弾き飛ばす初速を設定
-	if (lrDirection_ == LRDirection::kRight) {
-		velocity_.x = -0.6f; // 右向きなら左へ
-	} else {
-		velocity_.x = 0.6f; // 左向きなら右へ
-	}
+	// 向きではなく、衝突した敵・ギミックと反対側へ押し出す。
+	velocity_.x = knockbackDirection_ * kKnockbackHorizontalSpeed;
+	velocity_.y = kKnockbackVerticalSpeed;
+	onGround_ = false;
 }
 
 // ノックバック行動更新
@@ -1887,6 +1885,11 @@ void Player::BehaviorKnockbackUpdate()
 		// 終了して通常状態へ
 		behaviorRequest_ = Behavior::kRoot;
 	}
+	if (!onGround_)
+	{
+		velocity_.y = (std::max)(-kLimitFallSpeed,
+			velocity_.y - kGravityAcceleration * GameTime::GetDeltaFrames());
+	}
 
 	// 共通の移動・衝突判定処理
 	CollisionMapInfo collisionMapInfo;
@@ -1896,19 +1899,57 @@ void Player::BehaviorKnockbackUpdate()
 	ContactToCeiling(collisionMapInfo);
 	ContactToWall(collisionMapInfo);
 	ContactToGroundStateSwitch(collisionMapInfo);
+	if (collisionMapInfo.hitWall)
+	{
+		velocity_.x = 0.0f;
+	}
 
 	UpdateMatrix();
 }
 
 void Player::Draw() 
 {
-	model_->Draw(worldTransform_, *camera_);
-	// 攻撃エフェクトの描画（フラグがtrueの時のみ）
-	if (modelAttack_ != nullptr) {
-		if (isAttackEffectVisible_ && modelAttack_)
+	// 残像と粒を本体より先に描く。攻撃判定は IsAttack() / GetAttackAABB() が担当する。
+	if (modelFlash_)
+	{
+		for (auto& afterimage : rushAfterimages_)
 		{
-			// camera_ はポインタなので、*camera_ にして実体として渡す
-			modelAttack_->Draw(worldTransformAttack_, *camera_);
+			if (afterimage.remainingSeconds > 0.0f)
+			{
+				modelFlash_->Draw(afterimage.transform, *camera_, whiteTextureHandle_, &afterimage.color);
+			}
 		}
+	}
+	for (auto& grain : rushGrains_)
+	{
+		if (grain.remainingSeconds <= 0.0f)
+		{
+			continue;
+		}
+		Model* grainModel = grain.board ? rushBoardEffectModel_ : rushBoxEffectModel_;
+		if (grainModel)
+		{
+			grainModel->Draw(grain.transform, *camera_, grain.board ? &rushBoardColor_ : &rushBoxColor_);
+		}
+	}
+	const float flashElapsed = (std::max)(0.0f,
+		kDamageInvincibleFrames - damageInvincibleTimer_ - kDamageRedFrames);
+	const bool flashWhite = damageFlashActive_ && damageInvincibleTimer_ > 0.0f &&
+		static_cast<int32_t>(flashElapsed / kDamageFlashIntervalFrames) % 2 == 0;
+	if (modelFlash_ && damageFlashActive_ && damageRedTimer_ > 0.0f)
+	{
+		// 被弾直後は元テクスチャを白に差し替え、輪郭全体を赤くする。
+		damageVisualColor_.SetColor({1.0f, 0.08f, 0.08f, 1.0f});
+		modelFlash_->Draw(worldTransform_, *camera_, whiteTextureHandle_, &damageVisualColor_);
+	}
+	else if (modelFlash_ && flashWhite)
+	{
+		// 無敵中は白と通常のテクスチャを交互に描き、透明にはしない。
+		damageVisualColor_.SetColor({1.0f, 1.0f, 1.0f, 1.0f});
+		modelFlash_->Draw(worldTransform_, *camera_, whiteTextureHandle_, &damageVisualColor_);
+	}
+	else
+	{
+		model_->Draw(worldTransform_, *camera_);
 	}
 }

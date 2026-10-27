@@ -37,9 +37,9 @@ GameScene::~GameScene() {
 	// 3Dモデルデータの解放
 	// 自キャラの3Dモデルデータの解放
 	delete modelPlayer_;
+	delete modelPlayerFlash_;
 
 	// 攻撃エフェクトの3Dモデルデータの解放
-	delete modelAttackEffect_;
 
 	// ヒットエフェクト用3Dモデルデータの解放
 	delete modelHitEffect_;
@@ -60,6 +60,7 @@ GameScene::~GameScene() {
 	delete modelBlock_;
 	delete modelCheckpoint_;
 	delete modelCheckpointJewel_;
+	delete modelGoal_;
 	delete modelTriangleEdge_;
 	delete modelTriangleFill_;
 	delete modelFountain_;
@@ -107,13 +108,18 @@ GameScene::~GameScene() {
 
 	delete gameOverOverlay_;
 	delete retryChoice_;
-	delete stageSelectChoice_;
+	delete titleChoice_;
 	delete gameOverSelector_;
 	delete stageClearOverlay_;
 	delete stageClearBanner_;
 
 	delete hudGuideSprite_;
 	hudGuideSprite_ = nullptr;
+	for (Sprite* indicator : hpIndicators_)
+	{
+		delete indicator;
+	}
+	hpIndicators_.clear();
 
 	// ジャンプ表示の解放
 	delete jumpDirectionCursor_;
@@ -123,6 +129,7 @@ GameScene::~GameScene() {
 void GameScene::Initialize(StageManager* stageDataManager) 
 {
 	GameTime::SetTimeScale(1.0f);
+	rushAimScreenEffectReady_ = rushAimScreenEffect_.Initialize();
 	// ここにインゲームの初期化処理を書く
 
 	// 引数をメンバ変数に記録する
@@ -133,12 +140,16 @@ void GameScene::Initialize(StageManager* stageDataManager)
 
 	// ワールドトランスフォームの初期化
 	worldTransform_.Initialize();
+	goalWorldTransform_.Initialize();
+	goalColor_.Initialize();
+	goalColor_.SetColor({1.0f, 0.78f, 0.15f, 0.95f});
 
 	// ファイル名を指定してテクスチャを読み込む
 
 	// 3Dモデルデータの生成
 	// プレイヤーのモデルデータ生成
 	modelPlayer_ = Model::CreateFromOBJ("player", true);
+	modelPlayerFlash_ = Model::CreateFromOBJ("player", true);
 
 	// 通常の敵のモデルデータ生成
 	modelWalkEnemy_ = Model::CreateFromOBJ("enemy", true);
@@ -172,6 +183,8 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	}
 	modelCheckpoint_ = Model::CreateFromOBJ("checkpoint", true);
 	modelCheckpointJewel_ = Model::CreateFromOBJ("checkpointJewel", true);
+	// 既存の輪のモデルをゴールの目印として使う。
+	modelGoal_ = Model::CreateFromOBJ("ring", true);
 
 	// ギミックごとの見た目を読み込む。衝突判定・挙動は従来どおりStageGimmick側で管理する。
 	modelTriangleEdge_ = Model::CreateFromOBJ("movingPlatform", true);
@@ -194,9 +207,6 @@ void GameScene::Initialize(StageManager* stageDataManager)
 
 	// デスパーティクルの3Dモデルデータの生成
 	modelDeathParticles_ = Model::CreateFromOBJ("deathParticle", true);
-
-	// プレイヤーの攻撃エフェクトの3Dモデルデータの生成
-	modelAttackEffect_ = Model::CreateFromOBJ("attackEffect", true);
 
 	// 敵に対してのヒットエフェクトの3Dモデルデータの生成
 	modelHitEffect_ = Model::CreateFromOBJ("hitEffect", true);
@@ -243,14 +253,14 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	// 丸影の投影軸は2Dステージ用シェーダーで床方向に固定する。
 	lightGroup_->SetCircleShadowDistanceCasterLight(0, 2.5f);
 	lightGroup_->SetCircleShadowFactorAngle(0, {0.12f, 0.23f});
-	for (Model* model : {modelPlayer_, modelWalkEnemy_, modelShieldEnemy_, modelFlyingEnemy_,
-		modelBlock_, modelCheckpoint_, modelCheckpointJewel_, modelTriangleEdge_,
+	for (Model* model : {modelPlayer_, modelPlayerFlash_, modelWalkEnemy_, modelShieldEnemy_, modelFlyingEnemy_,
+		modelBlock_, modelCheckpoint_, modelCheckpointJewel_, modelGoal_, modelTriangleEdge_,
 		modelTriangleFill_, modelFountain_,
 		modelMovingPlatform_, modelWaterWheelShaft_, modelUpdraft_, modelLotusLeaf_,
 		modelFallingRock_, modelVine_, modelOreSwitch_, modelStoneBridge_,
 		modelVanishingCloud_, modelThunderCloud_, modelLightning_,
 		modelRingBoxEffect_, modelRingBoardEffect_, modelDeathParticles_,
-		modelAttackEffect_, modelHitEffect_, modelGuardEffect_})
+		modelHitEffect_, modelGuardEffect_})
 	{
 		if (model)
 		{
@@ -278,9 +288,9 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	retryChoice_->SetSize(Vector2(380.0f, 150.0f));
 	retryChoice_->SetColor(Vector4(0.20f, 0.65f, 0.30f, 1.0f));
 
-	stageSelectChoice_ = Sprite::Create(textureHandle, Vector2(720.0f, 300.0f));
-	stageSelectChoice_->SetSize(Vector2(380.0f, 150.0f));
-	stageSelectChoice_->SetColor(Vector4(0.20f, 0.42f, 0.82f, 1.0f));
+	titleChoice_ = Sprite::Create(textureHandle, Vector2(720.0f, 300.0f));
+	titleChoice_->SetSize(Vector2(380.0f, 150.0f));
+	titleChoice_->SetColor(Vector4(0.20f, 0.42f, 0.82f, 1.0f));
 
 	gameOverSelector_ = Sprite::Create(textureHandle, Vector2());
 	gameOverSelector_->SetSize(Vector2(396.0f, 166.0f));
@@ -327,6 +337,14 @@ void GameScene::Initialize(StageManager* stageDataManager)
 		GenerateFieldObjects();
 		ConfigureCameraForCurrentMap();
 	}
+	// マップ読み込みでプレイヤーが生成された後にHP表示を用意する。
+	for (int32_t i = 0; i < player_->GetMaxHp(); ++i)
+	{
+		Sprite* indicator = Sprite::Create(textureHandle,
+			Vector2(24.0f + static_cast<float>(i) * 30.0f, 24.0f));
+		indicator->SetSize(Vector2(24.0f, 14.0f));
+		hpIndicators_.push_back(indicator);
+	}
 	UpdateLightGroup();
 	
 	// 追従対象をセット
@@ -356,12 +374,13 @@ void GameScene::Initialize(StageManager* stageDataManager)
 void GameScene::Update()
 {
 	// 方向選択中は入力の読み取りを通常どおり保ち、ゲーム内時間だけを20%にする。
-	const bool isRushAimInput = Input::GetInstance()->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
-	const bool isRushAimTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
+	const bool isRushAimInput = Input::GetInstance()->PushKey(DIK_SPACE) || GamePadInput::IsRushPushed();
+	const bool isRushAimTriggered = Input::GetInstance()->TriggerKey(DIK_SPACE) || GamePadInput::IsRushTriggered();
 	const bool isRushAiming = phase_ == Phase::kPlay && player_ && isRushAimInput &&
 		(player_->IsRushAiming() || isRushAimTriggered);
 	GameTime::SetTimeScale(isRushAiming ? kRushAimTimeScale : 1.0f);
 	const float deltaFrames = GameTime::GetDeltaFrames();
+	goalPulseSeconds_ += GameTime::GetDeltaSeconds();
 
 	// ここにインゲームの更新処理を書く
 	#ifdef _DEBUG
@@ -380,6 +399,10 @@ void GameScene::Update()
 	{
 		ImGui::TextWrapped("Tiled error: %s", tiledRoomLoadError_.c_str());
 	}
+	if (!rushAimScreenEffectReady_)
+	{
+		ImGui::TextWrapped("Rush aim shader could not be initialized.");
+	}
 	// リロードボタン
 	if (ImGui::Button("Reload")) 
 	{
@@ -391,7 +414,7 @@ void GameScene::Update()
 	{
 		ImGui::Separator();
 		ImGui::Text("GAME OVER");
-		ImGui::Text("LEFT: Retry this stage    RIGHT: Return to stage select    SPACE: Confirm");
+		ImGui::Text("LEFT: Retry    RIGHT: Return to title    SPACE: Confirm");
 	}
 	ImGui::End();
 
@@ -457,6 +480,7 @@ void GameScene::Update()
 
 		// 全ての当たり判定
 		CheckAllCollisions();
+		UpdateCameraShakeEvents();
 		
 		// デスフラグの立った通常の敵を削除
 		enemies_.remove_if([](BaseEnemy* enemy)
@@ -496,7 +520,6 @@ void GameScene::Update()
 			}
 			else
 			{
-				stageSelectRequested_ = true;
 				finished_ = true;
 			}
 		}
@@ -596,6 +619,7 @@ void GameScene::Update()
 
 		// NDC座標から画面座標へ変換
 		const Vector2 playerScreenPosition = {(playerNdc.x + 1.0f) * 0.5f * kScreenWidth, (1.0f - playerNdc.y) * 0.5f * kScreenHeight};
+		rushAimCenterUv_ = {playerScreenPosition.x / kScreenWidth, playerScreenPosition.y / kScreenHeight};
 
 		// 選択方向へカーソルを配置
 		const float angle = player_->GetRushAngle();
@@ -609,7 +633,45 @@ void GameScene::Update()
 				: Vector4{1.0f, 0.3f, 0.3f, 1.0f}
 			: Vector4{1.0f, 0.8f, 0.2f, 1.0f});
 	}
+	const bool showRushAimEffect = phase_ == Phase::kPlay && player_ && player_->IsRushAiming();
+	const float unscaledDelta = GameTime::GetUnscaledDeltaSeconds();
+	const float fadeDuration = showRushAimEffect ? kRushAimEffectFadeIn : kRushAimEffectFadeOut;
+	const float fadeStep = unscaledDelta / fadeDuration;
+	rushAimEffectStrength_ = (std::clamp)(rushAimEffectStrength_ +
+		(showRushAimEffect ? fadeStep : -fadeStep), 0.0f, 1.0f);
+	if (rushAimEffectStrength_ > 0.0f)
+	{
+		rushAimEffectElapsed_ += unscaledDelta;
+	}
+	else
+	{
+		rushAimEffectElapsed_ = 0.0f;
+	}
 
+}
+
+void GameScene::UpdateCameraShakeEvents()
+{
+	if (!player_ || !cameraController_)
+	{
+		return;
+	}
+	// 当たり判定が終わってから見ると、リング取得や被弾もそのフレームで反映できる。
+	if (player_->GetRingPickupSequence() != lastRingPickupSequence_)
+	{
+		lastRingPickupSequence_ = player_->GetRingPickupSequence();
+		cameraController_->StartShake(0.09f, 0.13f);
+	}
+	if (player_->GetRushSequence() != lastRushSequence_)
+	{
+		lastRushSequence_ = player_->GetRushSequence();
+		cameraController_->StartShake(0.06f, 0.10f);
+	}
+	if (player_->GetDamageSequence() != lastDamageSequence_)
+	{
+		lastDamageSequence_ = player_->GetDamageSequence();
+		cameraController_->StartShake(0.40f, 0.30f);
+	}
 }
 
 void GameScene::UpdateGimmicksAndFallingRocks()
@@ -715,6 +777,7 @@ void GameScene::GenerateEnemyAtPosition(const Vector3& position, const std::stri
 
 	enemy->Initialize(model, cameraController_->GetCamera(), position);
 	enemy->SetGameScene(this);
+	enemy->SetMapChipField(mapChipField_);
 	enemies_.push_back(enemy);
 }
 
@@ -820,7 +883,8 @@ void GameScene::GenerateFieldObjects()
 				// マス目の座標を取得
 				Vector3 playerPosition = mapChipField_->GetMapChipPositionByIndex(j, i);
 				// プレイヤーの初期化
-				player_->Initialize(modelPlayer_, modelAttackEffect_, cameraController_->GetCamera(), playerPosition);
+				player_->Initialize(modelPlayer_, modelRingBoxEffect_, modelRingBoardEffect_, cameraController_->GetCamera(),
+					playerPosition, modelPlayerFlash_);
 				respawnPosition_ = playerPosition;
 				// プレイヤーにマップチップフィールドをセット
 				player_->SetMapChipField(mapChipField_);
@@ -974,7 +1038,8 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 	if (!player_)
 	{
 		player_ = new Player();
-		player_->Initialize(modelPlayer_, modelAttackEffect_, cameraController_->GetCamera(), playerPosition);
+		player_->Initialize(modelPlayer_, modelRingBoxEffect_, modelRingBoardEffect_, cameraController_->GetCamera(),
+			playerPosition, modelPlayerFlash_);
 	}
 	else
 	{
@@ -1071,6 +1136,10 @@ void GameScene::CheckRoomTransitions()
 	}
 
 	const AABB playerBounds = player_->GetAABB();
+	if (player_->IsDead())
+	{
+		return;
+	}
 
 	// 部屋へ入った直後は、到着地点付近のRoomExitから離れるまで待つ。
 	if (!isRoomExitArmed_)
@@ -1106,6 +1175,11 @@ void GameScene::CheckRoomTransitions()
 	    (std::max)(playerBounds.max.y, previousBounds.max.y),
 	    (std::max)(playerBounds.max.z, previousBounds.max.z),
 	};
+	if (currentRoom_.goal && MyMathUtility::IsCollision(sweptBounds, currentRoom_.goal->bounds))
+	{
+		StartStageClear();
+		return;
+	}
 
 	for (const TiledRoomExitData& exit : currentRoom_.exits)
 	{
@@ -1242,22 +1316,15 @@ void GameScene::ChangePhase()
 		// Tiledの地続きマップでは部屋出口を使うため、従来CSVだけ上端クリアを有効にする。
 		if (!isUsingTiledRooms_ && player_->GetWorldPosition().y > clearLineY)
 		{
-			SoundManager::GetInstance()->PlaySE(SoundEffect::kGoal);
-			isCleared_ = true;
-			stageManager_->MarkCurrentStageCleared();
-			stageClearTimer_ = 0.0f;
-			phase_ = Phase::kStageClear;
+			StartStageClear();
 			break;
 		}
 
 
-		// HPの残量に関わらず、ダメージ後は一度デス演出を再生する。
-		const bool isCheckpointRespawnRequested = player_->ConsumeRespawnRequest();
-		if (isCheckpointRespawnRequested || player_->IsDead())
+		// 残りHPがある被弾ではプレイを続け、HPが0になった時だけ死亡演出へ移る。
+		if (player_->IsDead())
 		{
 			SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerDeath);
-			// HPが0の時だけ、デス演出後にゲームオーバー選択へ移る。
-			isGameOverPending_ = player_->IsDead();
 			// フェーズをデス演出フェーズに切り替える
 			phase_ = Phase::kDeath;
 			// 自キャラの座標を取得
@@ -1278,32 +1345,24 @@ void GameScene::ChangePhase()
 			delete deathParticles_;
 			deathParticles_ = nullptr;
 
-			if (isGameOverPending_)
+			// 死亡時も進行状態を保持し、最後に有効化したチェックポイントで全回復する。
+			if (isUsingTiledRooms_ && worldProgress_.HasCheckpoint())
 			{
-				isRetrySelected_ = true;
-				phase_ = Phase::kGameOver;
+				if (currentRoomPath_ != worldProgress_.GetCheckpointRoomPath())
+				{
+					LoadTiledRoom(worldProgress_.GetCheckpointRoomPath(), "");
+					cameraController_->SetTarget(player_);
+				}
+				player_->Respawn(worldProgress_.GetRespawnPosition(), true);
 			}
 			else
 			{
-				// HPを保ったまま、最後のチェックポイントへ戻す。
-				if (isUsingTiledRooms_ && worldProgress_.HasCheckpoint())
-				{
-					if (currentRoomPath_ != worldProgress_.GetCheckpointRoomPath())
-					{
-						LoadTiledRoom(worldProgress_.GetCheckpointRoomPath(), "");
-						cameraController_->SetTarget(player_);
-					}
-					player_->Respawn(worldProgress_.GetRespawnPosition(), false);
-				}
-				else
-				{
-					player_->Respawn(respawnPosition_, false);
-				}
-				SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerRespawn);
-				cameraController_->Reset();
-				fade_->Start(Fade::Status::FadeIn, kFadeDuration);
-				phase_ = Phase::kFadeIn;
+				player_->Respawn(respawnPosition_, true);
 			}
+			SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerRespawn);
+			cameraController_->Reset();
+			fade_->Start(Fade::Status::FadeIn, kFadeDuration);
+			phase_ = Phase::kFadeIn;
 		}
 
 		break;
@@ -1327,6 +1386,19 @@ void GameScene::ChangePhase()
 		break;
 
 	}
+}
+
+void GameScene::StartStageClear()
+{
+	if (isCleared_)
+	{
+		return;
+	}
+	SoundManager::GetInstance()->PlaySE(SoundEffect::kGoal);
+	isCleared_ = true;
+	stageManager_->MarkCurrentStageCleared();
+	stageClearTimer_ = 0.0f;
+	phase_ = Phase::kStageClear;
 }
 
 // エフェクトを生成
@@ -1379,6 +1451,22 @@ void GameScene::Draw()
 			gimmick->Draw();
 		}
 	}
+	if (isUsingTiledRooms_ && currentRoom_.goal && modelGoal_ &&
+		IsVisible(currentRoom_.goal->bounds))
+	{
+		const AABB& bounds = currentRoom_.goal->bounds;
+		const float pulse = 1.0f + 0.06f * std::sin(goalPulseSeconds_ * 3.0f);
+		goalWorldTransform_.translation_ = {
+			(bounds.min.x + bounds.max.x) * 0.5f,
+			(bounds.min.y + bounds.max.y) * 0.5f, -0.15f};
+		goalWorldTransform_.scale_ = {
+			(bounds.max.x - bounds.min.x) * 0.5f * pulse,
+			(bounds.max.y - bounds.min.y) * 0.5f * pulse, 1.0f};
+		goalWorldTransform_.matWorld_ = MyMathUtility::MakeAffineMatrix(
+			goalWorldTransform_.scale_, goalWorldTransform_.rotation_, goalWorldTransform_.translation_);
+		goalWorldTransform_.TransferMatrix();
+		modelGoal_->Draw(goalWorldTransform_, *cameraController_->GetCamera(), &goalColor_);
+	}
 
 	if (phase_ == Phase::kFadeIn || phase_ == Phase::kPlay || phase_ == Phase::kStageClear)
 	{
@@ -1404,6 +1492,8 @@ void GameScene::Draw()
 
 	// 3Dモデル描画後処理
 	Model::PostDraw();
+	// 背景と3Dシーンへ減速演出を重ね、HPと方向カーソルは前面に残す。
+	rushAimScreenEffect_.Draw(rushAimEffectStrength_, rushAimEffectElapsed_, rushAimCenterUv_);
 
 	if (phase_ == Phase::kFadeIn || phase_ == Phase::kPlay)
 	{
@@ -1421,7 +1511,7 @@ void GameScene::Draw()
 		Sprite::PreDraw();
 		gameOverOverlay_->Draw();
 		retryChoice_->Draw();
-		stageSelectChoice_->Draw();
+		titleChoice_->Draw();
 		gameOverSelector_->Draw();
 		Sprite::PostDraw();
 	}
@@ -1442,6 +1532,14 @@ void GameScene::Draw()
 void GameScene::DrawHud()
 {
 	Sprite::PreDraw();
+	for (size_t i = 0; i < hpIndicators_.size(); ++i)
+	{
+		const bool filled = static_cast<int32_t>(i) < player_->GetHp();
+		hpIndicators_[i]->SetColor(filled
+			? Vector4{0.95f, 0.18f, 0.20f, 1.0f}
+			: Vector4{0.24f, 0.24f, 0.28f, 0.85f});
+		hpIndicators_[i]->Draw();
+	}
 	hudGuideSprite_->Draw();
 	Sprite::PostDraw();
 }

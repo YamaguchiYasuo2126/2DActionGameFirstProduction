@@ -43,6 +43,8 @@ public:
 	/// リセット
 	/// </summary>
 	void Reset();
+	// ワールド単位の振幅と実時間で、短い画面シェイクを開始する。
+	void StartShake(float amplitude, float durationSeconds);
 
 	// カメラのポインタを取得する関数
 	KamataEngine::Camera* GetCamera() { return &camera_; }
@@ -72,9 +74,16 @@ private:
 	// 座標補間割合
 	static inline const float kInterpolationRate = 0.1f;
 
-	// 速度掛け率
-	static inline const float kVelocityBias = 20.0f;
+	// 速度による先行量。横は左右どちらにも先行し、突進時は上限で抑える。
+	static inline const float kVelocityBiasX = 16.0f;
+	static inline const float kMaxVelocityBiasX = 3.0f;
+	static inline const float kVelocityBiasY = 20.0f;
 
 	bool isFixedCameraX_ = false;
 	float fixedCameraX_ = 0.0f;
+	float shakeAmplitude_ = 0.0f;
+	float shakeDurationSeconds_ = 0.0f;
+	float shakeRemainingSeconds_ = 0.0f;
+	float shakeElapsedSeconds_ = 0.0f;
+	KamataEngine::Vector3 shakeOffset_{};
 };

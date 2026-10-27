@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <numbers>
 
 using namespace KamataEngine;
@@ -87,6 +88,135 @@ void BaseEnemy::UpdateMatrix()
 	worldTransform_.TransferMatrix();
 }
 
+bool BaseEnemy::IsSolidPoint(float x, float y) const
+{
+	if (!mapChipField_)
+	{
+		return false;
+	}
+	const IndexSet index = mapChipField_->GetMapChipIndexSetByPosition({x, y, 0.0f});
+	return mapChipField_->IsInBounds(index.xIndex, index.yIndex) &&
+		mapChipField_->GetMapChipTypeByIndex(index.xIndex, index.yIndex) == MapChipType::kBlock;
+}
+
+bool BaseEnemy::IsBlockedAt(float x, float y) const
+{
+	if (!mapChipField_)
+	{
+		return false;
+	}
+	constexpr float kInside = 0.001f;
+	const IndexSet topLeft = mapChipField_->GetMapChipIndexSetByPosition(
+		{x - kWidth * 0.5f + kInside, y + kHeight * 0.5f - kInside, 0.0f});
+	const IndexSet bottomRight = mapChipField_->GetMapChipIndexSetByPosition(
+		{x + kWidth * 0.5f - kInside, y - kHeight * 0.5f + kInside, 0.0f});
+	for (int32_t tileY = topLeft.yIndex; tileY <= bottomRight.yIndex; ++tileY)
+	{
+		for (int32_t tileX = topLeft.xIndex; tileX <= bottomRight.xIndex; ++tileX)
+		{
+			if (!mapChipField_->IsInBounds(tileX, tileY) ||
+				mapChipField_->GetMapChipTypeByIndex(tileX, tileY) == MapChipType::kBlock)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+BaseEnemy::TerrainHit BaseEnemy::MoveWithMapCollision(float moveX, float moveY)
+{
+	TerrainHit hit;
+	if (!mapChipField_)
+	{
+		worldTransform_.translation_.x += moveX;
+		worldTransform_.translation_.y += moveY;
+		return hit;
+	}
+
+	// 1フレームの移動を小分けにし、可変FPSでも薄い壁を通り抜けないようにする。
+	auto moveAxis = [this](float distance, bool horizontal) {
+		if (distance == 0.0f)
+		{
+			return false;
+		}
+		constexpr float kMaxStep = 0.2f;
+		const int steps = (std::max)(1, static_cast<int>(std::ceil(std::abs(distance) / kMaxStep)));
+		const float step = distance / static_cast<float>(steps);
+		for (int i = 0; i < steps; ++i)
+		{
+			const float currentX = worldTransform_.translation_.x;
+			const float currentY = worldTransform_.translation_.y;
+			const float nextX = currentX + (horizontal ? step : 0.0f);
+			const float nextY = currentY + (horizontal ? 0.0f : step);
+			if (!IsBlockedAt(nextX, nextY))
+			{
+				worldTransform_.translation_.x = nextX;
+				worldTransform_.translation_.y = nextY;
+				continue;
+			}
+			// 当たる直前まで進め、壁や床から不自然に離れた位置で止まらないようにする。
+			float open = 0.0f;
+			float blocked = 1.0f;
+			for (int attempt = 0; attempt < 9; ++attempt)
+			{
+				const float midpoint = (open + blocked) * 0.5f;
+				const float candidateX = currentX + (horizontal ? step * midpoint : 0.0f);
+				const float candidateY = currentY + (horizontal ? 0.0f : step * midpoint);
+				if (IsBlockedAt(candidateX, candidateY))
+				{
+					blocked = midpoint;
+				}
+				else
+				{
+					open = midpoint;
+				}
+			}
+			worldTransform_.translation_.x += horizontal ? step * open : 0.0f;
+			worldTransform_.translation_.y += horizontal ? 0.0f : step * open;
+			return true;
+		}
+		return false;
+	};
+
+	hit.wall = moveAxis(moveX, true);
+	const bool hitVertical = moveAxis(moveY, false);
+	hit.floor = hitVertical && moveY < 0.0f;
+	hit.ceiling = hitVertical && moveY > 0.0f;
+	return hit;
+}
+
+void BaseEnemy::MoveGroundEnemy(bool moveHorizontally)
+{
+	const float deltaFrames = GameTime::GetDeltaFrames();
+	const float footY = worldTransform_.translation_.y - kHeight * 0.5f;
+	const bool hasGround = IsSolidPoint(worldTransform_.translation_.x, footY - 0.08f);
+	if (moveHorizontally && hasGround && velocity_.x != 0.0f)
+	{
+		const float direction = velocity_.x > 0.0f ? 1.0f : -1.0f;
+		const float aheadX = worldTransform_.translation_.x + direction * (kWidth * 0.5f + 0.12f);
+		if (!IsSolidPoint(aheadX, footY - 0.08f))
+		{
+			velocity_.x = -velocity_.x;
+		}
+	}
+	velocity_.y = (std::max)(-kMaxFallSpeed,
+		velocity_.y - kGravityAcceleration * deltaFrames);
+	const TerrainHit hit = MoveWithMapCollision(
+		moveHorizontally ? velocity_.x * deltaFrames : 0.0f,
+		velocity_.y * deltaFrames);
+	if (hit.wall)
+	{
+		velocity_.x = -velocity_.x;
+	}
+	if (hit.floor || hit.ceiling)
+	{
+		velocity_.y = 0.0f;
+	}
+	worldTransform_.rotation_.y = velocity_.x >= 0.0f
+		? std::numbers::pi_v<float> * 0.5f : -std::numbers::pi_v<float> * 0.5f;
+}
+
 // ワールド座標を取得
 Vector3 BaseEnemy::GetWorldPosition()
 {
@@ -158,8 +288,7 @@ void BaseEnemy::BehaviorWalkInitialize() {}
 // 歩行行動更新
 void BaseEnemy::BehaviorWalkUpdate()
 {
-	// 移動
-	//worldTransform_.translation_.x += velocity_.x;
+	MoveGroundEnemy();
 
 	// タイマーを加算
 	walkTimer_ += GameTime::GetDeltaSeconds();

@@ -16,7 +16,6 @@ enum class SoundEffect : uint32_t
 	kPlayerDeath,
 	kPlayerRespawn,
 	kStageSelect,
-	kPlayerAttack,
 	kCount,
 };
 

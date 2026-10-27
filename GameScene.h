@@ -11,12 +11,14 @@
 #include "DeathParticles.h"
 #include "Fade.h"
 #include "BaseGimmick.h"
+#include "SwitchLinkState.h"
 #include "TiledRoom.h"
 #include "WorldProgress.h"
 
 #include <string>
 
 class StageManager;
+class TriangleTraceGimmick;
 
 class GameScene {
 
@@ -120,10 +122,16 @@ private:
 
 	// ブロックの3Dモデルデータ
 	KamataEngine::Model* modelBlock_ = nullptr;
+	KamataEngine::Model* modelCheckpoint_ = nullptr;
+	KamataEngine::Model* modelCheckpointJewel_ = nullptr;
+	KamataEngine::Model* modelTriangleEdge_ = nullptr;
+	KamataEngine::Model* modelTriangleFill_ = nullptr;
+	uint32_t triangleWhiteTexture_ = 0;
 
 	// ギミックごとの3Dモデルデータ
 	KamataEngine::Model* modelFountain_ = nullptr;
 	KamataEngine::Model* modelMovingPlatform_ = nullptr;
+	KamataEngine::Model* modelWaterWheelShaft_ = nullptr;
 	KamataEngine::Model* modelUpdraft_ = nullptr;
 	KamataEngine::Model* modelLotusLeaf_ = nullptr;
 	KamataEngine::Model* modelFallingRock_ = nullptr;
@@ -133,6 +141,9 @@ private:
 	KamataEngine::Model* modelVanishingCloud_ = nullptr;
 	KamataEngine::Model* modelThunderCloud_ = nullptr;
 	KamataEngine::Model* modelLightning_ = nullptr;
+	KamataEngine::Model* modelRingBoxEffect_ = nullptr;
+	KamataEngine::Model* modelRingBoardEffect_ = nullptr;
+	KamataEngine::LightGroup* lightGroup_ = nullptr;
 
 	// デスパーティクルの3Dモデルデータ
 	KamataEngine::Model* modelDeathParticles_ = nullptr;
@@ -141,7 +152,7 @@ private:
 	KamataEngine::Model* modelSkydome_ = nullptr;
 
 	KamataEngine::Sprite* jumpDirectionCursor_ = nullptr;
-	std::vector<KamataEngine::Sprite*> hudGuideCharacters_;
+	KamataEngine::Sprite* hudGuideSprite_ = nullptr;
 
 	// ゲームオーバーの選択画面
 	KamataEngine::Sprite* gameOverOverlay_ = nullptr;
@@ -175,7 +186,9 @@ private:
 	TiledRoomData currentRoom_;
 	WorldProgress worldProgress_;
 	std::string currentRoomPath_;
+	std::string tiledRoomLoadError_;
 	bool isUsingTiledRooms_ = false;
+	std::vector<TriangleTraceGimmick*> triangleTraces_;
 	// 部屋へ入った直後のRoomExitから離れるまで、次の部屋移動を禁止する。
 	bool isRoomExitArmed_ = true;
 	
@@ -184,6 +197,8 @@ private:
 	void ClearRoomObjects();
 	bool LoadTiledRoom(const std::string& roomPath, const std::string& spawnId);
 	void ConfigureCameraForCurrentMap();
+	void UpdateGimmicksAndFallingRocks();
+	void UpdateLightGroup();
 	void CheckRoomTransitions();
 	bool IsVisible(const AABB& bounds, float margin = 2.0f) const;
 
@@ -191,6 +206,8 @@ private:
 	void GenerateEnemy(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
 	void GenerateEnemyAtPosition(const KamataEngine::Vector3& position, const std::string& enemyType);
 	void GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
+	void GenerateGimmickAtPosition(const KamataEngine::Vector3& position, GimmickType type,
+		const std::string& linkId = "legacy");
 	void GenerateCheckpoint(uint32_t xIndex, uint32_t yIndex, uint8_t subID);
 
 	// 全ての当たり判定を行う
@@ -209,8 +226,7 @@ private:
 	StageManager* stageManager_ = nullptr;
 
 	bool isCleared_ = false;
-	bool isOreSwitchActive_ = false;
-	float oreSwitchTimer_ = 0.0f;
+	SwitchLinkState switchLinkState_;
 
 	// 最後に上面へ着地したチェックポイント。未到達時はP0の初期地点。
 	KamataEngine::Vector3 respawnPosition_{};

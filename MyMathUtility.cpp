@@ -361,6 +361,16 @@ Matrix4x4 MyMathUtility::MakeAffineMatrix(const Vector3& scale, const Vector3& r
 	return worldMatrix;
 }
 
+// クロス積
+Vector3 MyMathUtility::Cross(const Vector3& v1, const Vector3& v2)
+{
+	Vector3 result{};
+	result.x = v1.y * v2.z - v1.z * v2.y;
+	result.y = v1.z * v2.x - v1.x * v2.z;
+	result.z = v1.x * v2.y - v1.y * v2.x;
+	return result;
+}
+
 // AABB同士の衝突判定
 bool MyMathUtility::IsCollision(const AABB& aabb1, const AABB& aabb2)
 {
@@ -374,3 +384,66 @@ bool MyMathUtility::IsCollision(const AABB& aabb1, const AABB& aabb2)
 
 	return false;
 }
+
+// 特定の軸に対する分離軸テスト
+bool MyMathUtility::TestSeparatingAxis(const Vector3& axis, const OBB& obb1, const OBB& obb2)
+{
+	const float epsilon = 0.0001f;
+	// 軸がほぼゼロベクトルの場合は分離軸として機能しないためスキップ
+	if (Dot(axis, axis) < epsilon)
+	{
+		return false;
+	}
+
+	// 2つのOBBの中心間の距離ベクトル
+	Vector3 t = Subtract(obb2.center, obb1.center);
+
+	// 軸に対するOBB1の投影半径を計算
+	float r1 = obb1.size.x * std::abs(Dot(obb1.orientation[0], axis)) + obb1.size.y * std::abs(Dot(obb1.orientation[1], axis)) + obb1.size.z * std::abs(Dot(obb1.orientation[2], axis));
+
+	// 軸に対するOBB2の投影半径を計算
+	float r2 = obb2.size.x * std::abs(Dot(obb2.orientation[0], axis)) + obb2.size.y * std::abs(Dot(obb2.orientation[1], axis)) + obb2.size.z * std::abs(Dot(obb2.orientation[2], axis));
+
+	// 中心間距離の軸に対する投影長さを計算
+	float distance = std::abs(Dot(t, axis));
+
+	// 投影距離が2つの半径の和よりも大きい場合、この軸において2つのOBBは分離している
+	return distance > r1 + r2;
+}
+
+// OBB同士の衝突判定
+bool MyMathUtility::IsCollision(const OBB& obb1, const OBB& obb2)
+{
+	// OBB1のローカル軸3本をテスト
+	for (int i = 0; i < 3; ++i)
+	{
+		if (TestSeparatingAxis(obb1.orientation[i], obb1, obb2))
+			return false;
+	}
+
+	// OBB2のローカル軸3本をテスト
+	for (int i = 0; i < 3; ++i)
+	{
+		if (TestSeparatingAxis(obb2.orientation[i], obb1, obb2))
+			return false;
+	}
+
+	// OBB1とOBB2のローカル軸同士の外積9本をテスト
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			Vector3 crossAxis = Cross(obb1.orientation[i], obb2.orientation[j]);
+			if (TestSeparatingAxis(crossAxis, obb1, obb2))
+			{
+				return false;
+			}
+		}
+	}
+
+	// 15本の軸すべてで分離していなければ、衝突している
+	return true;
+}
+
+
+

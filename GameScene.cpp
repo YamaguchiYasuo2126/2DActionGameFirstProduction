@@ -14,11 +14,13 @@
 #include "StageGimmick.h"
 #include "CheckpointGate.h"
 #include "CheckpointTrigger.h"
+#include "TriangleTraceGimmick.h"
 #include "GamePadInput.h"
 #include "GameTime.h"
 #include "SoundManager.h"
 
 #include <filesystem>
+#include <limits>
 #include <utility>
 
 
@@ -56,8 +58,13 @@ GameScene::~GameScene() {
 
 	// ブロックの3Dモデルデータの解放
 	delete modelBlock_;
+	delete modelCheckpoint_;
+	delete modelCheckpointJewel_;
+	delete modelTriangleEdge_;
+	delete modelTriangleFill_;
 	delete modelFountain_;
 	delete modelMovingPlatform_;
+	delete modelWaterWheelShaft_;
 	delete modelUpdraft_;
 	delete modelLotusLeaf_;
 	delete modelFallingRock_;
@@ -67,6 +74,8 @@ GameScene::~GameScene() {
 	delete modelVanishingCloud_;
 	delete modelThunderCloud_;
 	delete modelLightning_;
+	delete modelRingBoxEffect_;
+	delete modelRingBoardEffect_;
 
 	// デスパーティクルのモデルの開放
 	delete modelDeathParticles_;
@@ -85,6 +94,7 @@ GameScene::~GameScene() {
 
 	// 天球のモデルの解放
 	delete modelSkydome_;
+	delete lightGroup_;
 
 	// マップチップフィールドの解放
 	delete mapChipField_;
@@ -102,12 +112,8 @@ GameScene::~GameScene() {
 	delete stageClearOverlay_;
 	delete stageClearBanner_;
 
-	for (Sprite* character : hudGuideCharacters_)
-	{
-		delete character;
-	}
-
-	hudGuideCharacters_.clear();
+	delete hudGuideSprite_;
+	hudGuideSprite_ = nullptr;
 
 	// ジャンプ表示の解放
 	delete jumpDirectionCursor_;
@@ -144,7 +150,7 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	modelFlyingEnemy_ = Model::CreateFromOBJ("thunderSpirit", true);
 
 	// 現在選択中のステージに応じて、足場のモデルを切り替える。
-	// このモデルは通常ブロック・チェックポイント・基本ギミックで共通して使用する。
+	// このモデルは通常ブロック・旧CSV用チェックポイント足場・基本ギミックで使用する。
 	switch (stageManager_->GetCurrentStageIndex())
 	{
 	case 0: // Stage 1: 川
@@ -164,10 +170,16 @@ void GameScene::Initialize(StageManager* stageDataManager)
 		modelBlock_ = Model::CreateFromOBJ("riverStone", true);
 		break;
 	}
+	modelCheckpoint_ = Model::CreateFromOBJ("checkpoint", true);
+	modelCheckpointJewel_ = Model::CreateFromOBJ("checkpointJewel", true);
 
 	// ギミックごとの見た目を読み込む。衝突判定・挙動は従来どおりStageGimmick側で管理する。
+	modelTriangleEdge_ = Model::CreateFromOBJ("movingPlatform", true);
+	modelTriangleFill_ = Model::CreateFromOBJ("triangleTrampoline", true);
+	triangleWhiteTexture_ = TextureManager::Load("white1x1.png");
 	modelFountain_ = Model::CreateFromOBJ("fountain", true);
 	modelMovingPlatform_ = Model::CreateFromOBJ("movingPlatform", true);
+	modelWaterWheelShaft_ = Model::CreateFromOBJ("waterWheelLiftShaft", true);
 	modelUpdraft_ = Model::CreateFromOBJ("upDraft", true);
 	modelLotusLeaf_ = Model::CreateFromOBJ("lotusLeaf", true);
 	modelFallingRock_ = Model::CreateFromOBJ("fallingRock", true);
@@ -177,6 +189,8 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	modelVanishingCloud_ = Model::CreateFromOBJ("vanishingCloud", true);
 	modelThunderCloud_ = Model::CreateFromOBJ("thunderCloud", true);
 	modelLightning_ = Model::CreateFromOBJ("lightning", true);
+	modelRingBoxEffect_ = Model::CreateFromOBJ("boxEffectGrain", true);
+	modelRingBoardEffect_ = Model::CreateFromOBJ("squareBoardEffectGrain", true);
 
 	// デスパーティクルの3Dモデルデータの生成
 	modelDeathParticles_ = Model::CreateFromOBJ("deathParticle", true);
@@ -195,40 +209,65 @@ void GameScene::Initialize(StageManager* stageDataManager)
 	// 天球の3Dモデルの生成
 	modelSkydome_ = Model::CreateFromOBJ("Skydome", true);
 
+	// プレイヤー前方のスポットライトと、落石の着地点に投影する丸影。
+	lightGroup_ = LightGroup::Create();
+	// 【全体の明るさ】環境光。3つの値を上げると、マップやキャラ全体が明るくなる。
+	// 参考プロジェクトの {0.74, 0.75, 0.79} から少し明るくした値。
+	lightGroup_->SetAmbientColor({0.86f, 0.87f, 0.90f});
+	// 使用するライトだけを有効にする。プレイヤーのスポットライトは毎フレーム切り替える。
+	for (int i = 0; i < LightGroup::kDirLightNum; ++i)
+	{
+		lightGroup_->SetDirLightActive(i, false);
+	}
+	for (int i = 0; i < LightGroup::kPointLightNum; ++i)
+	{
+		lightGroup_->SetPointLightActive(i, false);
+	}
+	for (int i = 0; i < LightGroup::kSpotLightNum; ++i)
+	{
+		lightGroup_->SetSpotLightActive(i, false);
+	}
+	// 【面の陰影】平行光源。方向で明るい面が変わり、色の値で光の強さを調整できる。
+	lightGroup_->SetDirLightActive(0, true);
+	lightGroup_->SetDirLightDir(0, {-0.35f, 0.75f, -0.56f});
+	lightGroup_->SetDirLightColor(0, {0.68f, 0.69f, 0.73f});
+	// 【プレイヤー前方の光】色・強さ・届く距離・端の減衰・広がる角度の順。
+	// スポットライトだけを強くしたい場合は Intensity、広げたい場合は Radius や FactorAngle を変更する。
+	lightGroup_->SetSpotLightColor(0, {1.0f, 0.95f, 0.75f});
+	lightGroup_->SetSpotLightIntensity(0, 8.0f);
+	lightGroup_->SetSpotLightRadius(0, 7.0f);
+	lightGroup_->SetSpotLightDecay(0, 1.5f);
+	lightGroup_->SetSpotLightFactorAngle(0, {0.30f, 0.65f}); // 減衰開始・終了角度（ラジアン）
+	// 【落石の予告影】スポットライトとは別。下の値で影の広がりを調整する。
+	lightGroup_->SetCircleShadowActive(0, false);
+	// 丸影の投影軸は2Dステージ用シェーダーで床方向に固定する。
+	lightGroup_->SetCircleShadowDistanceCasterLight(0, 2.5f);
+	lightGroup_->SetCircleShadowFactorAngle(0, {0.12f, 0.23f});
+	for (Model* model : {modelPlayer_, modelWalkEnemy_, modelShieldEnemy_, modelFlyingEnemy_,
+		modelBlock_, modelCheckpoint_, modelCheckpointJewel_, modelTriangleEdge_,
+		modelTriangleFill_, modelFountain_,
+		modelMovingPlatform_, modelWaterWheelShaft_, modelUpdraft_, modelLotusLeaf_,
+		modelFallingRock_, modelVine_, modelOreSwitch_, modelStoneBridge_,
+		modelVanishingCloud_, modelThunderCloud_, modelLightning_,
+		modelRingBoxEffect_, modelRingBoardEffect_, modelDeathParticles_,
+		modelAttackEffect_, modelHitEffect_, modelGuardEffect_})
+	{
+		if (model)
+		{
+			model->SetLightGroup(lightGroup_);
+		}
+	}
+
 	uint32_t textureHandle = TextureManager::Load("white1x1.png");
 
 	jumpDirectionCursor_ = Sprite::Create(textureHandle, Vector2(337.0f, 627.0f));
 	jumpDirectionCursor_->SetSize(Vector2(16.0f, 16.0f));
 	jumpDirectionCursor_->SetColor(Vector4(1.0f, 0.8f, 0.2f, 1.0f));
 
-	// DebugTextはこの実行環境で初期化されないため、同じフォント画像から
-	// 通常のSpriteを生成して操作ガイドを表示する。
-	const uint32_t debugFontTexture = TextureManager::Load("debugfont.png");
-	auto appendHudText = [this, debugFontTexture](const std::string& text, float x, float y, float scale) {
-		constexpr float kFontWidth = 9.0f;
-		constexpr float kFontHeight = 18.0f;
-		constexpr int32_t kFontLineCount = 14;
-		float cursorX = x;
-		for (const unsigned char character : text)
-		{
-			if (character >= 32u && character <= 126u && character != ' ')
-			{
-				const int32_t fontIndex = static_cast<int32_t>(character) - 32;
-				Sprite* sprite = Sprite::Create(debugFontTexture, Vector2(cursorX, y));
-				sprite->SetSize(Vector2(kFontWidth * scale, kFontHeight * scale));
-				sprite->SetTextureRect(
-					Vector2(static_cast<float>(fontIndex % kFontLineCount) * kFontWidth,
-						static_cast<float>(fontIndex / kFontLineCount) * kFontHeight),
-					Vector2(kFontWidth, kFontHeight));
-				hudGuideCharacters_.push_back(sprite);
-			}
-			cursorX += kFontWidth * scale;
-		}
-	};
-	appendHudText("MOVE : LEFT/RIGHT OR A/D", 890.0f, 575.0f, 1.0f);
-	appendHudText("JUMP : W OR UP", 890.0f, 600.0f, 1.0f);
-	appendHudText("RUSH : HOLD SPACE + WASD", 890.0f, 625.0f, 1.0f);
-	appendHudText("PAD  : HOLD A + L STICK", 890.0f, 650.0f, 1.0f);
+	// 操作案内は専用画像1枚をSpriteで表示する。
+	const uint32_t hudGuideTexture = TextureManager::Load("controlGuide.png");
+	hudGuideSprite_ = Sprite::Create(hudGuideTexture, Vector2(874.0f, 563.0f));
+	hudGuideSprite_->SetSize(Vector2(390.0f, 145.0f));
 
 	// ゲームオーバー時は、赤い背景と2つの選択カードを表示する。
 	gameOverOverlay_ = Sprite::Create(textureHandle, Vector2(0.0f, 0.0f));
@@ -288,6 +327,7 @@ void GameScene::Initialize(StageManager* stageDataManager)
 		GenerateFieldObjects();
 		ConfigureCameraForCurrentMap();
 	}
+	UpdateLightGroup();
 	
 	// 追従対象をセット
 	cameraController_->SetTarget(player_);
@@ -336,12 +376,17 @@ void GameScene::Update()
 		ImGui::Text("Room: %s", currentRoom_.roomId.c_str());
 		ImGui::Text("Tile blocks: %zu", blockTransforms_.size());
 	}
+	if (!tiledRoomLoadError_.empty())
+	{
+		ImGui::TextWrapped("Tiled error: %s", tiledRoomLoadError_.c_str());
+	}
 	// リロードボタン
 	if (ImGui::Button("Reload")) 
 	{
 		// ボタンを押したらリロード要求フラグを立てる
 		reloadRequested_ = true;
 	}
+
 	if (phase_ == Phase::kGameOver)
 	{
 		ImGui::Separator();
@@ -355,12 +400,8 @@ void GameScene::Update()
 	// フェードの更新処理
 	fade_->Update();
 
-	// 鉱石スイッチで有効になる石橋の残り時間を更新する。
-	if (oreSwitchTimer_ > 0)
-	{
-		oreSwitchTimer_ = (std::max)(0.0f, oreSwitchTimer_ - deltaFrames);
-		isOreSwitchActive_ = oreSwitchTimer_ > 0;
-	}
+	// リンクIDごとの石橋タイマーを独立して更新する。
+	switchLinkState_.Update(deltaFrames);
 
 	// フェーズ切り替えのチェックを呼び出す
 	ChangePhase();
@@ -374,8 +415,37 @@ void GameScene::Update()
 		// 天球の更新
 		skydome_->Update();
 	
+		// Spaceを押した瞬間、最も近い未完成の頂点へ吸い付く。
+		// 既に輪郭へ吸い付いている場合は、その頂点を維持して自分で次の方向を選ぶ。
+		if (phase_ == Phase::kPlay && isRushAimTriggered && !player_->IsAttachedToTraceVertex() &&
+			player_->CanStartRush())
+		{
+			TriangleTraceGimmick::SnapCandidate nearest{};
+			bool found = false;
+			const Vector3 playerPosition = player_->GetWorldPosition();
+			for (TriangleTraceGimmick* triangle : triangleTraces_)
+			{
+				TriangleTraceGimmick::SnapCandidate candidate{};
+				if (triangle->FindSnapCandidate(playerPosition, candidate) &&
+					(!found || candidate.distanceSquared < nearest.distanceSquared))
+				{
+					nearest = candidate;
+					found = true;
+				}
+			}
+
+			if (found)
+			{
+				player_->SnapToTraceVertex(nearest.vertex, nearest.directions, nearest.directionCount);
+			}
+		}
+
 		// 自キャラの更新
 		player_->Update();
+		for (TriangleTraceGimmick* triangle : triangleTraces_)
+		{
+			triangle->ObserveRush(player_);
+		}
 
 		// 敵キャラの更新
 		for (BaseEnemy* enemy : enemies_)
@@ -383,16 +453,14 @@ void GameScene::Update()
 			enemy->Update();
 		}
 
-		for (BaseGimmick* gimmick : gimmicks_)
-		{
-			gimmick->Update();
-		}
+		UpdateGimmicksAndFallingRocks();
 
 		// 全ての当たり判定
 		CheckAllCollisions();
 		
 		// デスフラグの立った通常の敵を削除
-		enemies_.remove_if([](BaseEnemy* enemy) {
+		enemies_.remove_if([](BaseEnemy* enemy)
+			{
 			if (enemy->IsDead())
 			{
 				delete enemy;
@@ -447,10 +515,7 @@ void GameScene::Update()
 			enemy->Update();
 		}
 
-		for (BaseGimmick* gimmick : gimmicks_)
-		{
-			gimmick->Update();
-		}
+		UpdateGimmicksAndFallingRocks();
 
 		// デスパーティクルが存在するなら更新
 		if (deathParticles_)
@@ -469,15 +534,10 @@ void GameScene::Update()
 			enemy->Update();
 		}
 
-		for (BaseGimmick* gimmick : gimmicks_)
-		{
-			gimmick->Update();
-		}
+		UpdateGimmicksAndFallingRocks();
 
 		// 全ての当たり判定
 		CheckAllCollisions();
-
-		
 
 		break;
 	}
@@ -519,6 +579,7 @@ void GameScene::Update()
 		// 通常カメラのビュープロジェクション行列の更新と転送
 		cameraController_->GetCamera()->UpdateMatrix();
 	}
+	UpdateLightGroup();
 
 	// プレイヤーの周囲に8方向選択を表示する
 	if (player_ && player_->IsRushAiming())
@@ -543,8 +604,85 @@ void GameScene::Update()
 
 		jumpDirectionCursor_->SetPosition({playerScreenPosition.x + std::cos(angle) * kCursorRadius - kCursorHalfSize,
 		                                   playerScreenPosition.y - std::sin(angle) * kCursorRadius - kCursorHalfSize});
+		jumpDirectionCursor_->SetColor(player_->IsAttachedToTraceVertex()
+			? player_->IsTraceAimDirectionValid() ? Vector4{0.2f, 1.0f, 0.9f, 1.0f}
+				: Vector4{1.0f, 0.3f, 0.3f, 1.0f}
+			: Vector4{1.0f, 0.8f, 0.2f, 1.0f});
 	}
 
+}
+
+void GameScene::UpdateGimmicksAndFallingRocks()
+{
+	for (BaseGimmick* gimmick : gimmicks_)
+	{
+		gimmick->Update();
+	}
+	// 水車や移動足場の更新順に依存しないよう、全ギミックの移動後に落石を判定する。
+	for (BaseGimmick* gimmick : gimmicks_)
+	{
+		if (auto* stageGimmick = dynamic_cast<StageGimmick*>(gimmick))
+		{
+			stageGimmick->ResolveFallingRockCollisions(gimmicks_);
+		}
+	}
+}
+
+void GameScene::UpdateLightGroup()
+{
+	if (!lightGroup_)
+	{
+		return;
+	}
+	const bool playerActive = player_ && !player_->IsDead();
+	lightGroup_->SetSpotLightActive(0, playerActive);
+	if (playerActive)
+	{
+		const Vector3 playerPosition = player_->GetWorldPosition();
+		const float facing = player_->GetLRDirection() == Player::LRDirection::kRight ? 1.0f : -1.0f;
+		// 【光の出る位置】Xはプレイヤーの少し前、Yは足元付近、Zはモデルの手前。
+		// 足元をもっと照らしたいときはY、モデル前面への当たり方はZで調整する。
+		const Vector3 lightPosition = {playerPosition.x + facing * 0.15f,
+			playerPosition.y + 0.10f, playerPosition.z - 0.65f};
+		lightGroup_->SetSpotLightPos(0, lightPosition);
+		// LightGroup がGPU転送時に反転するため、見た目の進行方向を渡す。
+		lightGroup_->SetSpotLightDir(0, {facing, 0.0f, 0.0f});
+	}
+
+	// エンジンの丸影は1枠なので、プレイヤーに近い予告中の落石を表示する。
+	float nearestDistanceSquared = (std::numeric_limits<float>::max)();
+	Vector3 shadowImpact{};
+	float shadowStrength = 0.0f;
+	bool hasShadow = false;
+	for (BaseGimmick* gimmick : gimmicks_)
+	{
+		auto* stageGimmick = dynamic_cast<StageGimmick*>(gimmick);
+		Vector3 impact{};
+		float strength = 0.0f;
+		if (!stageGimmick || !stageGimmick->GetFallingRockShadow(impact, strength))
+		{
+			continue;
+		}
+		const Vector3 playerPosition = player_ ? player_->GetWorldPosition() : impact;
+		const float dx = impact.x - playerPosition.x;
+		const float dy = impact.y - playerPosition.y;
+		const float distanceSquared = dx * dx + dy * dy;
+		if (distanceSquared < nearestDistanceSquared)
+		{
+			nearestDistanceSquared = distanceSquared;
+			shadowImpact = impact;
+			shadowStrength = strength;
+			hasShadow = true;
+		}
+	}
+	lightGroup_->SetCircleShadowActive(0, hasShadow);
+	if (hasShadow)
+	{
+		lightGroup_->SetCircleShadowCasterPos(0,
+			{shadowImpact.x, shadowImpact.y + 0.025f, shadowImpact.z});
+		lightGroup_->SetCircleShadowAtten(0, {4.0f - 2.4f * shadowStrength, 0.0f, 0.0f});
+	}
+	lightGroup_->Update();
 }
 
 void GameScene::GenerateEnemy(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
@@ -582,20 +720,26 @@ void GameScene::GenerateEnemyAtPosition(const Vector3& position, const std::stri
 
 void GameScene::GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
 {
-	
-	if (subID > static_cast<uint8_t>(GimmickType::kThunderCloud)) {
+	if (subID > static_cast<uint8_t>(GimmickType::kAirRushSwitch))
+	{
 		return;
 	}
+	GenerateGimmickAtPosition(mapChipField_->GetMapChipPositionByIndex(xIndex, yIndex),
+		static_cast<GimmickType>(subID));
+}
 
+void GameScene::GenerateGimmickAtPosition(const Vector3& position, GimmickType type,
+	const std::string& linkId)
+{
 	Model* gimmickModel = modelBlock_;
-	switch (static_cast<GimmickType>(subID))
+	switch (type)
 	{
 	case GimmickType::kFountainJump:
 		gimmickModel = modelFountain_;
 		break;
 	case GimmickType::kMovingPlatform:
 	case GimmickType::kWaterWheelLift:
-		// 水車リフト用モデルが追加されるまでは、移動足場モデルを使用する。
+		// 水車の4枚の台にも移動足場モデルを使う。
 		gimmickModel = modelMovingPlatform_;
 		break;
 	case GimmickType::kUpdraft:
@@ -613,6 +757,9 @@ void GameScene::GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
 	case GimmickType::kOreSwitch:
 		gimmickModel = modelOreSwitch_;
 		break;
+	case GimmickType::kAirRushSwitch:
+		gimmickModel = modelRingBoxEffect_;
+		break;
 	case GimmickType::kStoneBridge:
 		gimmickModel = modelStoneBridge_;
 		break;
@@ -622,13 +769,16 @@ void GameScene::GenerateGimmick(uint32_t xIndex, uint32_t yIndex, uint8_t subID)
 	case GimmickType::kThunderCloud:
 		gimmickModel = modelThunderCloud_;
 		break;
+	case GimmickType::kAirRushRing:
+		gimmickModel = modelGuardEffect_;
+		break;
 	}
 
 	StageGimmick* gimmick = new StageGimmick();
-	gimmick->Initialize(gimmickModel, modelLightning_, cameraController_->GetCamera(), mapChipField_,
-		&isOreSwitchActive_, &oreSwitchTimer_,
-		mapChipField_->GetMapChipPositionByIndex(xIndex, yIndex),
-		static_cast<GimmickType>(subID));
+	gimmick->Initialize(gimmickModel, modelLightning_, modelWaterWheelShaft_,
+		modelRingBoxEffect_, modelRingBoardEffect_,
+		cameraController_->GetCamera(), mapChipField_,
+		&switchLinkState_, position, type, linkId);
 	gimmicks_.push_back(gimmick);
 }
 
@@ -649,8 +799,10 @@ void GameScene::GenerateFieldObjects()
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
 	// プレイヤー・敵・ギミックを生成する。ブロック描画は最後にまとめて生成する。
-	for (uint32_t i = 0; i < numBlockVirtical; ++i) {
-		for (uint32_t j = 0; j < numBlockHorizontal; ++j) {
+	for (uint32_t i = 0; i < numBlockVirtical; ++i)
+	{
+		for (uint32_t j = 0; j < numBlockHorizontal; ++j)
+		{
 
 			// 該当マスのマップチップ種別を取得
 			MapChipType chipType = mapChipField_->GetMapChipTypeByIndex(j, i);
@@ -736,6 +888,7 @@ void GameScene::BuildBlockTransforms()
 
 void GameScene::ClearRoomObjects()
 {
+	triangleTraces_.clear();
 	for (BaseEnemy* enemy : enemies_)
 	{
 		delete enemy;
@@ -774,8 +927,9 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 	{
 		loadedRoom = TiledRoomLoader::Load(roomPath);
 	}
-	catch (const std::exception&)
+	catch (const std::exception& error)
 	{
+		tiledRoomLoadError_ = error.what();
 		return false;
 	}
 
@@ -788,6 +942,7 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 			});
 		if (firstPlayerSpawn == loadedRoom.spawns.end())
 		{
+			tiledRoomLoadError_ = "Tiled room has no PlayerSpawn: " + roomPath;
 			return false;
 		}
 		requestedSpawn = &*firstPlayerSpawn;
@@ -799,6 +954,9 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 	ClearRoomObjects();
 	currentRoom_ = std::move(loadedRoom);
 	currentRoomPath_ = normalizedPath;
+	tiledRoomLoadError_.clear();
+	// スイッチと石橋の時限状態は部屋ごとに初期化する。
+	switchLinkState_.Reset();
 
 	mapChipField_->ResetMapChipData(currentRoom_.width, currentRoom_.height);
 	for (uint32_t y = 0; y < currentRoom_.height; ++y)
@@ -836,13 +994,34 @@ bool GameScene::LoadTiledRoom(const std::string& roomPath, const std::string& sp
 			GenerateEnemyAtPosition(spawn.position, spawn.enemyType);
 		}
 	}
+	for (const TiledGimmickData& gimmick : currentRoom_.gimmicks)
+	{
+		GenerateGimmickAtPosition(gimmick.position, gimmick.type, gimmick.linkId);
+	}
 
 	for (const TiledCheckpointData& checkpointData : currentRoom_.checkpoints)
 	{
 		CheckpointTrigger* checkpoint = new CheckpointTrigger();
-		checkpoint->Initialize(modelBlock_, cameraController_->GetCamera(), checkpointData.position,
+		checkpoint->Initialize(modelCheckpoint_, modelCheckpointJewel_,
+			cameraController_->GetCamera(), triangleWhiteTexture_, checkpointData.position,
 			&worldProgress_, currentRoomPath_, checkpointData.id);
 		gimmicks_.push_back(checkpoint);
+	}
+
+	for (const TiledTriangleData& triangleData : currentRoom_.triangles)
+	{
+		TriangleTraceGimmick* triangle = new TriangleTraceGimmick();
+		const std::string progressKey = currentRoomPath_ + ":triangle:" + triangleData.id;
+		if (triangle->Initialize(modelTriangleEdge_, modelTriangleFill_, triangleWhiteTexture_,
+			cameraController_->GetCamera(), triangleData, &worldProgress_, progressKey))
+		{
+			gimmicks_.push_back(triangle);
+			triangleTraces_.push_back(triangle);
+		}
+		else
+		{
+			delete triangle;
+		}
 	}
 
 	ConfigureCameraForCurrentMap();
@@ -884,17 +1063,22 @@ void GameScene::ConfigureCameraForCurrentMap()
 	cameraController_->SetFixedCameraX(false);
 }
 
-void GameScene::CheckRoomTransitions() {
-	if (phase_ != Phase::kPlay || !player_) {
+void GameScene::CheckRoomTransitions()
+{
+	if (phase_ != Phase::kPlay || !player_)
+	{
 		return;
 	}
 
 	const AABB playerBounds = player_->GetAABB();
 
 	// 部屋へ入った直後は、到着地点付近のRoomExitから離れるまで待つ。
-	if (!isRoomExitArmed_) {
-		for (const TiledRoomExitData& exit : currentRoom_.exits) {
-			if (MyMathUtility::IsCollision(playerBounds, exit.bounds)) {
+	if (!isRoomExitArmed_)
+	{
+		for (const TiledRoomExitData& exit : currentRoom_.exits)
+		{
+			if (MyMathUtility::IsCollision(playerBounds, exit.bounds))
+			{
 				return;
 			}
 		}
@@ -970,7 +1154,8 @@ void GameScene::CheckAllCollisions()
 		for (BaseEnemy* enemy : enemies_)
 		{
 			// コリジョン無効の敵はスキップする
-			if (enemy->IsCollisionDisabled()) {
+			if (enemy->IsCollisionDisabled())
+			{
 				continue;
 			}
 
@@ -1189,7 +1374,7 @@ void GameScene::Draw()
 
 	for (BaseGimmick* gimmick : gimmicks_)
 	{
-		if (IsVisible(gimmick->GetAABB()))
+		if (IsVisible(gimmick->GetDrawAABB()))
 		{
 			gimmick->Draw();
 		}
@@ -1257,10 +1442,7 @@ void GameScene::Draw()
 void GameScene::DrawHud()
 {
 	Sprite::PreDraw();
-	for (Sprite* character : hudGuideCharacters_)
-	{
-		character->Draw();
-	}
+	hudGuideSprite_->Draw();
 	Sprite::PostDraw();
 }
 

@@ -14,7 +14,8 @@
 
 using namespace KamataEngine;
 
-void BaseEnemy::Initialize(Model* model, Camera* camera, const Vector3& position) {
+void BaseEnemy::Initialize(Model* model, Camera* camera, const Vector3& position)
+{
 	// NULLポインタチェック
 	assert(model);
 
@@ -35,13 +36,16 @@ void BaseEnemy::Initialize(Model* model, Camera* camera, const Vector3& position
 	UpdateMatrix();
 }
 
-void BaseEnemy::Update() {
-	if (behaviorRequest_ != Behavior::kUnknown) {
+void BaseEnemy::Update()
+{
+	if (behaviorRequest_ != Behavior::kUnknown) 
+	{
 
 		// 振る舞いを変更する
 		behavior_ = behaviorRequest_;
 		// 各振る舞いごとの初期化を実行
-		switch (behavior_) {
+		switch (behavior_)
+		{
 		case Behavior::kWalk:
 		default:
 			// 歩行ビヘイビアの初期化
@@ -59,7 +63,8 @@ void BaseEnemy::Update() {
 		behaviorRequest_ = Behavior::kUnknown;
 	}
 
-	switch (behavior_) {
+	switch (behavior_)
+	{
 	case Behavior::kWalk:
 	default:
 		// 通常行動更新
@@ -73,7 +78,8 @@ void BaseEnemy::Update() {
 	}
 }
 
-void BaseEnemy::UpdateMatrix() {
+void BaseEnemy::UpdateMatrix()
+{
 	// アフィン変換行列の作成
 	worldTransform_.matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransform_.scale_, worldTransform_.rotation_, worldTransform_.translation_);
 
@@ -82,7 +88,8 @@ void BaseEnemy::UpdateMatrix() {
 }
 
 // ワールド座標を取得
-Vector3 BaseEnemy::GetWorldPosition() {
+Vector3 BaseEnemy::GetWorldPosition()
+{
 	// ワールド座標を入れる変数
 	Vector3 worldPos;
 	// ワールド行列の平行移動成分を取得（ワールド座標）
@@ -94,7 +101,8 @@ Vector3 BaseEnemy::GetWorldPosition() {
 }
 
 // AABBを取得
-AABB BaseEnemy::GetAABB() {
+AABB BaseEnemy::GetAABB()
+{
 	Vector3 worldPos = GetWorldPosition();
 
 	AABB aabb;
@@ -105,14 +113,17 @@ AABB BaseEnemy::GetAABB() {
 	return aabb;
 }
 
-void BaseEnemy::OnCollision(Player* player) {
-	if (behavior_ == Behavior::kDeath) {
+void BaseEnemy::OnCollision(Player* player)
+{
+	if (behavior_ == Behavior::kDeath)
+	{
 		// 敵がやられているなら何もしない
 		return;
 	}
 
 	// プレイヤーが攻撃中なら敵が死ぬ
-	if (player->IsAttack()) {
+	if (player->IsAttack())
+	{
 		// 敵の振る舞いをデス演出に変更
 		behaviorRequest_ = Behavior::kDeath;
 		SoundManager::GetInstance()->PlaySE(SoundEffect::kEnemyDeath);
@@ -145,7 +156,8 @@ void BaseEnemy::OnCollision(Player* player) {
 void BaseEnemy::BehaviorWalkInitialize() {}
 
 // 歩行行動更新
-void BaseEnemy::BehaviorWalkUpdate() {
+void BaseEnemy::BehaviorWalkUpdate()
+{
 	// 移動
 	//worldTransform_.translation_.x += velocity_.x;
 
@@ -167,7 +179,8 @@ void BaseEnemy::BehaviorWalkUpdate() {
 }
 
 // デス行動初期化
-void BaseEnemy::BehaviorDeathInitialize() {
+void BaseEnemy::BehaviorDeathInitialize() 
+{
 	// タイマーをリセット
 	deathTimer_ = 0.0f;
 
@@ -176,7 +189,8 @@ void BaseEnemy::BehaviorDeathInitialize() {
 }
 
 // デス行動更新
-void BaseEnemy::BehaviorDeathUpdate() {
+void BaseEnemy::BehaviorDeathUpdate()
+{
 	// アニメーションのタイマーを加算する
 	deathTimer_ += GameTime::GetDeltaSeconds();
 
@@ -193,10 +207,14 @@ void BaseEnemy::BehaviorDeathUpdate() {
 	UpdateMatrix();
 
 	// if (アニメーションのタイマーが一定時間に達したら)
-	if (deathTimer_ >= kDeathAnimationTime) {
+	if (deathTimer_ >= kDeathAnimationTime)
+	{
 		// デスフラグを立てる
 		isDead_ = true;
 	}
 }
 
-void BaseEnemy::Draw() { model_->Draw(worldTransform_, *camera_); }
+void BaseEnemy::Draw() 
+{ 
+	model_->Draw(worldTransform_, *camera_);
+}

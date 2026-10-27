@@ -46,6 +46,7 @@ void Player::Update()
 {
 	// ギミックとの衝突面を判定するため、移動前の位置を保存する。
 	previousPosition_ = worldTransform_.translation_;
+	detachedFromTraceThisFrame_ = false;
 	if (vineDetachCooldown_ > 0)
 	{
 		vineDetachCooldown_ = (std::max)(0.0f, vineDetachCooldown_ - GameTime::GetDeltaFrames());
@@ -128,6 +129,7 @@ void Player::MoveInput()
 		isJumpRushing_ = false;
 		isJumpRushEnding_ = false;
 		isAttackEffectVisible_ = false;
+		traceRushActive_ = false;
 	}
 
 	Input* input = Input::GetInstance();
@@ -136,6 +138,19 @@ void Player::MoveInput()
 	const bool isJumpPushed = input->PushKey(DIK_SPACE) || GamePadInput::IsJumpPushed();
 	const bool isJumpTriggered = input->TriggerKey(DIK_SPACE) || GamePadInput::IsJumpTriggered();
 	const bool isNormalJumpTriggered = input->TriggerKey(DIK_W) || input->TriggerKey(DIK_UP);
+	const bool detachFromTrace = (traceAimActive_ || traceRushActive_) &&
+		(input->TriggerKey(DIK_E) || GamePadInput::IsGrabTriggered());
+	if (detachFromTrace)
+	{
+		DetachFromTraceVertex();
+	}
+	else if (traceAimActive_)
+	{
+		// 一辺をなぞった後も次のSpace入力まで頂点に吸い付いたまま待つ。
+		worldTransform_.translation_ = traceAimAnchor_;
+		velocity_ = {};
+		onGround_ = false;
+	}
 	const float deltaFrames = GameTime::GetDeltaFrames();
 	const float moveDamping = GameTime::GetDampingFactor(1.0f - kAttenuation);
 
@@ -152,7 +167,7 @@ void Player::MoveInput()
 
 
 	// 方向選択と突進中は方向入力を通常移動に使わない。
-	if (!isRushAiming_ && !isJumpRushing_ && !isJumpTriggered)
+	if (!isRushAiming_ && !isJumpRushing_ && !isJumpTriggered && !traceAimActive_)
 	{
 		if (isRightPushed != isLeftPushed)
 		{
@@ -219,8 +234,9 @@ void Player::MoveInput()
 		SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
 	}
 
-	// Spaceを押した瞬間は真上を既定方向として方向選択を開始する。
-	if (!isRushAiming_ && !isJumpRushing_ && (onGround_ || canAirRush_) && isJumpTriggered)
+	// Spaceを押した瞬間に方向選択を開始する。輪郭上でも方向はプレイヤーが選ぶ。
+	if (!detachFromTrace && !isRushAiming_ && !isJumpRushing_ &&
+		(onGround_ || canAirRush_) && isJumpTriggered)
 	{
 
 		// 空中から方向選択を開始した場合は、この時点で使用回数を消費する。
@@ -236,11 +252,13 @@ void Player::MoveInput()
 		}
 		isRushAiming_ = true;
 		rushAimElapsedSeconds_ = 0.0f;
+		traceDirectionSelected_ = false;
 		rushAngle_ = std::numbers::pi_v<float> / 2.0f;
 	}
 
 	if (isRushAiming_)
 	{
+		// 輪郭の頂点では上の入力処理が選択中も座標を固定する。
 		// スローモーションの影響を受けない実時間で数える。
 		rushAimElapsedSeconds_ += GameTime::GetUnscaledDeltaSeconds();
 
@@ -277,12 +295,18 @@ void Player::MoveInput()
 
 			if (directionX != 0 || directionY != 0)
 			{
+				// 図形をなぞる方向も自動補正せず、通常突進と同じ8方向から選ぶ。
 				rushAngle_ = std::atan2(static_cast<float>(directionY), static_cast<float>(directionX));
-				if (directionX > 0)
+				if (traceAimActive_)
+				{
+					traceDirectionSelected_ = true;
+				}
+				const float selectedX = std::cos(rushAngle_);
+				if (selectedX > 0.01f)
 				{
 					beginTurn(LRDirection::kRight);
 				}
-				else if (directionX < 0)
+				else if (selectedX < -0.01f)
 				{
 					beginTurn(LRDirection::kLeft);
 				}
@@ -291,7 +315,6 @@ void Player::MoveInput()
 		}
 		else
 		{
-			const bool isGroundRush = onGround_;
 			float directionX = std::cos(rushAngle_);
 			float directionY = std::sin(rushAngle_);
 			// sin(pi) などの誤差で水平突進が傾かないよう、ほぼ0の成分を固定する。
@@ -303,34 +326,141 @@ void Player::MoveInput()
 			{
 				directionY = 0.0f;
 			}
-			velocity_.x = directionX * kJumpRushSpeed;
-			velocity_.y = directionY * kJumpRushSpeed;
-			if (isGroundRush)
+			if (traceAimActive_ && !IsTraceAimDirectionValid())
 			{
-				// 水平方向の突進でも床へ接触したままにならないよう、発動時だけ少し浮かせる。
-				worldTransform_.translation_.y += kGroundRushLift;
+				// 辺と異なる方向なら突進せず、頂点に留まって選び直せる。
+				isRushAiming_ = false;
+				rushAimElapsedSeconds_ = 0.0f;
+				canAirRush_ = true;
 			}
-			onGround_ = false;
-			// 地上発動も空中分を消費し、着地または攻撃成功まで連続発動を禁止する。
-			canAirRush_ = false;
+			else
+			{
+				const bool isGroundRush = onGround_ && !traceAimActive_;
+				velocity_.x = directionX * kJumpRushSpeed;
+				velocity_.y = directionY * kJumpRushSpeed;
+				if (isGroundRush)
+				{
+					// 水平方向の突進でも床へ接触したままにならないよう、発動時だけ少し浮かせる。
+					worldTransform_.translation_.y += kGroundRushLift;
+				}
+				onGround_ = false;
+				// 地上発動も空中分を消費し、着地または攻撃成功まで連続発動を禁止する。
+				canAirRush_ = false;
 
-			isRushAiming_ = false;
-			rushAimElapsedSeconds_ = 0.0f;
-			isJumpRushing_ = true;
-			isJumpRushEnding_ = false;
-			isAttackEffectVisible_ = true;
-			jumpRushFrame_ = 0;
-			SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
+				isRushAiming_ = false;
+				traceRushActive_ = traceAimActive_;
+				traceAimActive_ = false;
+				rushAimElapsedSeconds_ = 0.0f;
+				isJumpRushing_ = true;
+				isJumpRushEnding_ = false;
+				isAttackEffectVisible_ = true;
+				jumpRushFrame_ = 0;
+				rushStartPosition_ = worldTransform_.translation_;
+				rushDirection_ = {directionX, directionY, 0.0f};
+				++rushSequence_;
+				SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
+			}
 		}
 	}
 
 	// 方向選択中も、開始前の慣性と重力に従ってスローモーションで動き続ける。
 	// 突進中だけは全方向の移動量を揃えるため重力を加えない。
-	if (!onGround_ && !isJumpRushing_)
+	if (!onGround_ && !isJumpRushing_ && !traceAimActive_)
 	{
 		velocity_.y -= kGravityAcceleration * deltaFrames;
 		velocity_.y = (std::max)(velocity_.y, -kLimitFallSpeed);
 	}
+}
+
+bool Player::CanStartRush() const
+{
+	return !isDead_ && behavior_ == Behavior::kRoot && behaviorRequest_ == Behavior::kUnknown &&
+		!isHanging_ && !isRushAiming_ && !isJumpRushing_ && (onGround_ || canAirRush_);
+}
+
+bool Player::IsTraceAimDirectionValid() const
+{
+	if (!traceAimActive_ || !traceDirectionSelected_)
+	{
+		return false;
+	}
+	const float x = std::cos(rushAngle_);
+	const float y = std::sin(rushAngle_);
+	for (int i = 0; i < traceAimDirectionCount_; ++i)
+	{
+		if (x * traceAimDirections_[i].x + y * traceAimDirections_[i].y >= 0.96f)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void Player::SnapToTraceVertex(const Vector3& vertex,
+	const std::array<Vector3, 2>& directions, int directionCount)
+{
+	if (!CanStartRush() || directionCount <= 0)
+	{
+		return;
+	}
+	traceAimActive_ = true;
+	traceRushActive_ = false;
+	traceAimAnchor_ = vertex;
+	traceAimDirections_ = directions;
+	traceAimDirectionCount_ = (std::min)(directionCount, 2);
+	// 地上から吸い付いた場合も、次のMoveInputで空中突進を開始できるようにする。
+	if (onGround_)
+	{
+		canAirRush_ = true;
+	}
+	worldTransform_.translation_ = vertex;
+	previousPosition_ = vertex;
+	velocity_ = {};
+	onGround_ = false;
+	UpdateMatrix();
+}
+
+void Player::FinishRushAtVertex(const Vector3& vertex,
+	const std::array<Vector3, 2>& nextDirections, int nextDirectionCount)
+{
+	worldTransform_.translation_ = vertex;
+	previousPosition_ = vertex;
+	velocity_ = {};
+	onGround_ = false;
+	canAirRush_ = true;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	isAttackEffectVisible_ = false;
+	traceAimActive_ = nextDirectionCount > 0;
+	traceRushActive_ = false;
+	traceDirectionSelected_ = false;
+	traceAimAnchor_ = vertex;
+	traceAimDirections_ = nextDirections;
+	traceAimDirectionCount_ = (std::clamp)(nextDirectionCount, 0, 2);
+	UpdateMatrix();
+}
+
+void Player::DetachFromTraceVertex()
+{
+	detachedFromTraceThisFrame_ = true;
+	traceAimActive_ = false;
+	traceRushActive_ = false;
+	traceDirectionSelected_ = false;
+	traceAimDirectionCount_ = 0;
+	isRushAiming_ = false;
+	isJumpRushing_ = false;
+	isJumpRushEnding_ = false;
+	isAttackEffectVisible_ = false;
+	rushAimElapsedSeconds_ = 0.0f;
+	velocity_ = {};
+	onGround_ = false;
+}
+
+bool Player::WantsToGrabVine() const
+{
+	return !isDead_ && !isHanging_ && vineDetachCooldown_ <= 0.0f &&
+		!traceAimActive_ && !traceRushActive_ && !detachedFromTraceThisFrame_ &&
+		(Input::GetInstance()->TriggerKey(DIK_E) || GamePadInput::IsGrabTriggered());
 }
 
 void Player::AttachToVine(const Vector3& anchorPosition)
@@ -348,6 +478,8 @@ void Player::AttachToVine(const Vector3& anchorPosition)
 	vineAngularVelocity_ = 0.0f;
 	isHanging_ = true;
 	isRushAiming_ = false;
+	traceAimActive_ = false;
+	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
 	isAttackEffectVisible_ = false;
@@ -373,6 +505,8 @@ void Player::LaunchFromFountain(float launchVelocity)
 	velocity_.y = launchVelocity;
 	onGround_ = false;
 	isRushAiming_ = false;
+	traceAimActive_ = false;
+	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
 	isAttackEffectVisible_ = false;
@@ -487,13 +621,73 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 		};
 	};
 
+	// 突進の角補正候補が、移動途中も含めてブロックを通らないか調べる。
+	auto isSweptAreaClear = [&](float left, float right, float bottom, float top) {
+		const TileRange range = makeTileRange(left, right, bottom, top);
+		for (int32_t y = range.minY; y <= range.maxY; ++y)
+		{
+			for (int32_t x = range.minX; x <= range.maxX; ++x)
+			{
+				if (!isBlock(x, y))
+				{
+					continue;
+				}
+				const MapChipField::Rect rect = mapChipField_->GetRectByIndex(x, y);
+				if (right > rect.left + epsilon && left < rect.right - epsilon &&
+					top > rect.bottom + epsilon && bottom < rect.top - epsilon)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	};
+	auto isHorizontalSweepClear = [&](float centerX, float centerY, float moveX) {
+		return isSweptAreaClear((std::min)(centerX, centerX + moveX) - halfWidth,
+			(std::max)(centerX, centerX + moveX) + halfWidth,
+			centerY - halfHeight, centerY + halfHeight);
+	};
+	auto isVerticalSweepClear = [&](float centerX, float centerY, float moveY) {
+		return isSweptAreaClear(centerX - halfWidth, centerX + halfWidth,
+			(std::min)(centerY, centerY + moveY) - halfHeight,
+			(std::max)(centerY, centerY + moveY) + halfHeight);
+	};
+	const float startX = worldTransform_.translation_.x;
+	const float startY = worldTransform_.translation_.y;
+	float cornerCorrectionY = 0.0f;
+	if (isJumpRushing_ && std::abs(info.move.x) > epsilon &&
+		!isHorizontalSweepClear(startX, startY, info.move.x))
+	{
+		// 横突進で上端・下端を少しかすめた場合、空いている側へ最小限ずらす。
+		const float preferredSign = info.move.y < 0.0f ? -1.0f : 1.0f;
+		for (float distance = kRushCornerCorrectionStep;
+			distance <= kRushCornerCorrectionMax + epsilon; distance += kRushCornerCorrectionStep)
+		{
+			for (float sign : {preferredSign, -preferredSign})
+			{
+				const float correction = sign * distance;
+				if (isVerticalSweepClear(startX, startY, correction) &&
+					isHorizontalSweepClear(startX, startY + correction, info.move.x))
+				{
+					cornerCorrectionY = correction;
+					break;
+				}
+			}
+			if (cornerCorrectionY != 0.0f)
+			{
+				break;
+			}
+		}
+	}
+	const float collisionY = startY + cornerCorrectionY;
+
 	// X 軸方向の衝突を先に解決する。
 	if (info.move.x > 0.0f) 
 	{
 		const float currentRight = worldTransform_.translation_.x + halfWidth;
 		const float targetRight = currentRight + info.move.x;
-		const float playerBottom = worldTransform_.translation_.y - halfHeight;
-		const float playerTop = worldTransform_.translation_.y + halfHeight;
+		const float playerBottom = collisionY - halfHeight;
+		const float playerTop = collisionY + halfHeight;
 		const TileRange range = makeTileRange(currentRight - halfWidth * 2.0f, targetRight, playerBottom, playerTop);
 
 		for (int32_t y = range.minY; y <= range.maxY; ++y)
@@ -519,8 +713,8 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	{
 		const float currentLeft = worldTransform_.translation_.x - halfWidth;
 		const float targetLeft = currentLeft + info.move.x;
-		const float playerBottom = worldTransform_.translation_.y - halfHeight;
-		const float playerTop = worldTransform_.translation_.y + halfHeight;
+		const float playerBottom = collisionY - halfHeight;
+		const float playerTop = collisionY + halfHeight;
 		const TileRange range = makeTileRange(targetLeft, currentLeft + halfWidth * 2.0f, playerBottom, playerTop);
 
 		for (int32_t y = range.minY; y <= range.maxY; ++y)
@@ -543,12 +737,39 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 		}
 	}
 
+	// 上向き突進で天井の左右端をかすめたときも、空いた側へ小さく逃がす。
+	float cornerCorrectionX = 0.0f;
+	const float collisionX = startX + info.move.x;
+	if (isJumpRushing_ && info.move.y > epsilon &&
+		!isVerticalSweepClear(collisionX, collisionY, info.move.y))
+	{
+		const float preferredSign = info.move.x < 0.0f ? -1.0f : 1.0f;
+		for (float distance = kRushCornerCorrectionStep;
+			distance <= kRushCornerCorrectionMax + epsilon; distance += kRushCornerCorrectionStep)
+		{
+			for (float sign : {preferredSign, -preferredSign})
+			{
+				const float correction = sign * distance;
+				if (isHorizontalSweepClear(collisionX, collisionY, correction) &&
+					isVerticalSweepClear(collisionX + correction, collisionY, info.move.y))
+				{
+					cornerCorrectionX = correction;
+					break;
+				}
+			}
+			if (cornerCorrectionX != 0.0f)
+			{
+				break;
+			}
+		}
+	}
+
 	// X 軸の解決後の位置を用いて Y 軸方向の衝突を解決する。
-	const float playerLeft = worldTransform_.translation_.x + info.move.x - halfWidth;
-	const float playerRight = worldTransform_.translation_.x + info.move.x + halfWidth;
+	const float playerLeft = collisionX + cornerCorrectionX - halfWidth;
+	const float playerRight = collisionX + cornerCorrectionX + halfWidth;
 	if (info.move.y > 0.0f)
 	{
-		const float currentTop = worldTransform_.translation_.y + halfHeight;
+		const float currentTop = collisionY + halfHeight;
 		const float targetTop = currentTop + info.move.y;
 		const TileRange range = makeTileRange(playerLeft, playerRight, currentTop - halfHeight * 2.0f, targetTop);
 
@@ -566,7 +787,7 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 				const bool overlapsHorizontally = playerRight > rect.left + epsilon && playerLeft < rect.right - epsilon;
 				if (crossesBottomFace && overlapsHorizontally)
 				{
-					info.move.y = std::min(info.move.y, rect.bottom - worldTransform_.translation_.y - (halfHeight + kBlank));
+					info.move.y = std::min(info.move.y, rect.bottom - collisionY - (halfHeight + kBlank));
 					info.isCeiling = true;
 				}
 			}
@@ -574,7 +795,7 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 	}
 	else if (info.move.y < 0.0f)
 	{
-		const float currentBottom = worldTransform_.translation_.y - halfHeight;
+		const float currentBottom = collisionY - halfHeight;
 		const float targetBottom = currentBottom + info.move.y;
 		const TileRange range = makeTileRange(playerLeft, playerRight, targetBottom, currentBottom + halfHeight * 2.0f);
 
@@ -592,12 +813,14 @@ void Player::CheckMapCollision(CollisionMapInfo& info)
 				const bool overlapsHorizontally = playerRight > rect.left + epsilon && playerLeft < rect.right - epsilon;
 				if (crossesTopFace && overlapsHorizontally)
 				{
-					info.move.y = (std::max)(info.move.y, rect.top - worldTransform_.translation_.y + (halfHeight + kBlank));
+					info.move.y = (std::max)(info.move.y, rect.top - collisionY + (halfHeight + kBlank));
 					info.isLanding = true;
 				}
 			}
 		}
 	}
+	info.move.x += cornerCorrectionX;
+	info.move.y += cornerCorrectionY;
 }
 
 // マップ衝突判定上方向
@@ -1034,6 +1257,39 @@ AABB Player::GetPreviousAABB() const
 	return aabb;
 }
 
+bool Player::TryLandOnOneWayGimmick(const AABB& gimmickAABB, float horizontalMove, float verticalMove)
+{
+	const AABB previous = GetPreviousAABB();
+	const AABB current = GetAABB();
+	const float previousTop = gimmickAABB.max.y - verticalMove;
+	const float currentTop = gimmickAABB.max.y;
+	const bool wasOverPlatform =
+		previous.max.x > gimmickAABB.min.x - horizontalMove &&
+		previous.min.x < gimmickAABB.max.x - horizontalMove;
+	const bool willOverlapAfterCarry =
+		current.max.x + horizontalMove > gimmickAABB.min.x &&
+		current.min.x + horizontalMove < gimmickAABB.max.x;
+	const bool overlapsPlatformNow =
+		current.max.x > gimmickAABB.min.x && current.min.x < gimmickAABB.max.x;
+	constexpr float kFootTolerance = 0.03f;
+	const float rideGap = (std::max)(0.08f, std::abs(verticalMove) + 0.04f);
+	const bool wasRiding = wasOverPlatform && willOverlapAfterCarry &&
+		previous.min.y >= previousTop - kFootTolerance &&
+		previous.min.y <= previousTop + 0.06f &&
+		current.min.y <= currentTop + rideGap && velocity_.y <= 0.0f;
+	const bool crossedTopFromAbove = overlapsPlatformNow &&
+		previous.min.y >= previousTop - kFootTolerance &&
+		current.min.y <= currentTop + kFootTolerance &&
+		current.min.y - previous.min.y <= verticalMove + kFootTolerance;
+	if (!wasRiding && !crossedTopFromAbove)
+	{
+		return false;
+	}
+
+	LandOnGimmick(currentTop, horizontalMove);
+	return true;
+}
+
 Player::GimmickHitSide Player::ResolveSolidGimmickCollision(const AABB& gimmickAABB, float horizontalMove, float verticalMove)
 {
 	const AABB previousAABB = GetPreviousAABB();
@@ -1074,6 +1330,85 @@ Player::GimmickHitSide Player::ResolveSolidGimmickCollision(const AABB& gimmickA
 	if (!overlapsX || !overlapsY)
 	{
 		return GimmickHitSide::kNone;
+	}
+
+	if (isJumpRushing_)
+	{
+		// 石橋・雲などの足場も、突進で端を少しかすめた時だけ逃がす。
+		// 下向きの着地は優先し、足場を通り抜ける補正は行わない。
+		auto canOccupyMap = [this](float x, float y) {
+			if (!mapChipField_)
+			{
+				return true;
+			}
+			const float left = x - kWidth * 0.5f;
+			const float right = x + kWidth * 0.5f;
+			const float bottom = y - kHeight * 0.5f;
+			const float top = y + kHeight * 0.5f;
+			const IndexSet minIndex = mapChipField_->GetMapChipIndexSetByPosition({left, top, 0.0f});
+			const IndexSet maxIndex = mapChipField_->GetMapChipIndexSetByPosition({right, bottom, 0.0f});
+			for (int32_t tileY = minIndex.yIndex; tileY <= maxIndex.yIndex; ++tileY)
+			{
+				for (int32_t tileX = minIndex.xIndex; tileX <= maxIndex.xIndex; ++tileX)
+				{
+					if (mapChipField_->GetMapChipTypeByIndex(tileX, tileY) != MapChipType::kBlock)
+					{
+						continue;
+					}
+					const MapChipField::Rect rect = mapChipField_->GetRectByIndex(tileX, tileY);
+					if (right > rect.left + kEpsilon && left < rect.right - kEpsilon &&
+						top > rect.bottom + kEpsilon && bottom < rect.top - kEpsilon)
+					{
+						return false;
+					}
+				}
+			}
+			return true;
+		};
+		auto tryShift = [&](float shiftX, float shiftY) {
+			if (std::abs(shiftX) > kRushCornerCorrectionMax ||
+				std::abs(shiftY) > kRushCornerCorrectionMax)
+			{
+				return false;
+			}
+			const float targetX = worldTransform_.translation_.x + shiftX;
+			const float targetY = worldTransform_.translation_.y + shiftY;
+			if (!canOccupyMap(targetX, targetY))
+			{
+				return false;
+			}
+			worldTransform_.translation_.x = targetX;
+			worldTransform_.translation_.y = targetY;
+			UpdateMatrix();
+			return true;
+		};
+		if (previousAABB.max.y <= gimmickAABB.min.y + kEpsilon && velocity_.y > 0.0f)
+		{
+			const float shiftLeft = gimmickAABB.min.x - currentAABB.max.x - kBlank;
+			const float shiftRight = gimmickAABB.max.x - currentAABB.min.x + kBlank;
+			const bool leftFirst = std::abs(shiftLeft) <= std::abs(shiftRight);
+			if (leftFirst ? (tryShift(shiftLeft, 0.0f) || tryShift(shiftRight, 0.0f))
+				: (tryShift(shiftRight, 0.0f) || tryShift(shiftLeft, 0.0f)))
+			{
+				return GimmickHitSide::kNone;
+			}
+		}
+		else if (previousAABB.min.y < gimmickAABB.max.y - kEpsilon)
+		{
+			const bool fromLeft = previousAABB.max.x <= gimmickAABB.min.x + kEpsilon && velocity_.x > 0.0f;
+			const bool fromRight = previousAABB.min.x >= gimmickAABB.max.x - kEpsilon && velocity_.x < 0.0f;
+			if (fromLeft || fromRight)
+			{
+				const float shiftUp = gimmickAABB.max.y - currentAABB.min.y + kBlank;
+				const float shiftDown = gimmickAABB.min.y - currentAABB.max.y - kBlank;
+				const bool upFirst = std::abs(shiftUp) <= std::abs(shiftDown);
+				if (upFirst ? (tryShift(0.0f, shiftUp) || tryShift(0.0f, shiftDown))
+					: (tryShift(0.0f, shiftDown) || tryShift(0.0f, shiftUp)))
+				{
+					return GimmickHitSide::kNone;
+				}
+			}
+		}
 	}
 
 	// 前フレームの位置から侵入した面を決める。これにより横・下からの接触で上面へワープしない。
@@ -1227,6 +1562,8 @@ void Player::Respawn(const Vector3& position, bool restoreHp)
 	isHanging_ = false;
 	vineDetachCooldown_ = 0;
 	isRushAiming_ = false;
+	traceAimActive_ = false;
+	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
 	jumpRushFrame_ = 0;
@@ -1249,7 +1586,7 @@ void Player::BehaviorRootUpdate()
 	}
 
 	// Spaceは突進ジャンプ専用。ゲームパッドXの従来攻撃だけ互換操作として残す。
-	if (!isRushAiming_ && !isJumpRushing_ && GamePadInput::IsAttackTriggered())
+	if (!traceAimActive_ && !isRushAiming_ && !isJumpRushing_ && GamePadInput::IsAttackTriggered())
 	{
 		if (!onGround_ && isAttackedInAir_)
 		{
@@ -1497,11 +1834,24 @@ void Player::OnAttackHit()
 	// 通常状態への遷移は BehaviorAttackUpdate() 側に任せる。
 }
 
+bool Player::TryCollectAirRushRing()
+{
+	if (isDead_ || onGround_)
+	{
+		return false;
+	}
+	// 既に使用可能でも2回分には増やさず、1回分を満たすだけにする。
+	canAirRush_ = true;
+	return true;
+}
+
 // ノックバック行動初期化
 void Player::BehaviorKnockbackInitialize()
 {
 	knockbackParameter_ = 0.0f;
 	isRushAiming_ = false;
+	traceAimActive_ = false;
+	traceRushActive_ = false;
 	isJumpRushing_ = false;
 	isJumpRushEnding_ = false;
 	// 攻撃エフェクトを消す

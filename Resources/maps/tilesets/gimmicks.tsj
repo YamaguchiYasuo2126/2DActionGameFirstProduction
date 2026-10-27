@@ -1,0 +1,29 @@
+{
+  "columns": 4,
+  "image": "gimmicks.svg",
+  "imageheight": 128,
+  "imagewidth": 128,
+  "margin": 0,
+  "name": "GameplayGimmicks",
+  "spacing": 0,
+  "tilecount": 13,
+  "tileheight": 32,
+  "tilewidth": 32,
+  "tiles": [
+    {"id": 0, "properties": [{"name": "gimmickType", "type": "string", "value": "FountainJump"}]},
+    {"id": 1, "properties": [{"name": "gimmickType", "type": "string", "value": "MovingPlatform"}]},
+    {"id": 2, "properties": [{"name": "gimmickType", "type": "string", "value": "WaterWheelLift"}]},
+    {"id": 3, "properties": [{"name": "gimmickType", "type": "string", "value": "Updraft"}]},
+    {"id": 4, "properties": [{"name": "gimmickType", "type": "string", "value": "BounceLeaf"}]},
+    {"id": 5, "properties": [{"name": "gimmickType", "type": "string", "value": "FallingRock"}]},
+    {"id": 6, "properties": [{"name": "gimmickType", "type": "string", "value": "Vine"}]},
+    {"id": 7, "properties": [{"name": "gimmickType", "type": "string", "value": "OreSwitch"}]},
+    {"id": 8, "properties": [{"name": "gimmickType", "type": "string", "value": "StoneBridge"}]},
+    {"id": 9, "properties": [{"name": "gimmickType", "type": "string", "value": "VanishingCloud"}]},
+    {"id": 10, "properties": [{"name": "gimmickType", "type": "string", "value": "ThunderCloud"}]},
+    {"id": 11, "properties": [{"name": "gimmickType", "type": "string", "value": "AirRushRing"}]},
+    {"id": 12, "properties": [{"name": "gimmickType", "type": "string", "value": "AirRushSwitch"}]}
+  ],
+  "type": "tileset",
+  "version": "1.11"
+}

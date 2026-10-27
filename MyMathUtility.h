@@ -1,7 +1,9 @@
 #pragma once
 #include "KamataEngine.h"
 #include "AABB.h"
+#include "OBB.h"
 
+// ゲーム内の物体を知らない、ベクトル・行列・AABB・OBBの共通計算だけを置く。
 class MyMathUtility {
 public:
 
@@ -77,7 +79,15 @@ public:
 	// 3次元アフィン変換行列の作成（Scale -> Rotate -> Translate）
 	static KamataEngine::Matrix4x4 MakeAffineMatrix(const KamataEngine::Vector3& scale, const KamataEngine::Vector3& rotate, const KamataEngine::Vector3& translate);
 
+	// クロス積
+	static KamataEngine::Vector3 Cross(const KamataEngine::Vector3& v1, const KamataEngine::Vector3& v2);
+
 	// AABB同士の衝突判定
 	static bool IsCollision(const AABB& aabb1, const AABB& aabb2);
 
+	// 特定の軸に対する分離軸テスト
+	static bool TestSeparatingAxis(const KamataEngine::Vector3& axis, const OBB& obb1, const OBB& obb2);
+
+	// OBB同士の衝突判定
+	static bool IsCollision(const OBB& obb1, const OBB& obb2);
 };

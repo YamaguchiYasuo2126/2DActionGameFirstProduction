@@ -4,6 +4,7 @@
 #include "MyMathUtility.h"
 #include "MapChipField.h"
 #include "Player.h"
+#include "SoundManager.h"
 
 #include <algorithm>
 #include <cmath>
@@ -419,6 +420,7 @@ void StageGimmick::StartFountainBurst()
 	// 衝突したフレームの描画から水柱が見えるよう、短い初期進行を与える。
 	fountainBurstSeconds_ = 0.01f;
 	fountainBurstActive_ = true;
+	SoundManager::GetInstance()->PlaySE(SoundEffect::kFountain);
 	UpdateFountainBurst();
 }
 
@@ -773,6 +775,10 @@ void StageGimmick::OnPlayerCollision(Player* player)
 		// 従来どおり攻撃で押せる。リンクした石橋だけを一定時間表示する。
 		if (player->IsAttack() && switchLinkState_)
 		{
+			if (!linkId_.empty() && !switchLinkState_->IsActive(linkId_))
+			{
+				SoundManager::GetInstance()->PlaySE(SoundEffect::kSwitch);
+			}
 			switchLinkState_->Activate(linkId_, kOreSwitchActiveFrames);
 		}
 		break;
@@ -782,6 +788,10 @@ void StageGimmick::OnPlayerCollision(Player* player)
 		if (player->IsJumpRushing() && switchLinkState_ &&
 			MyMathUtility::IsCollision(player->GetAttackAABB(), GetAABB()))
 		{
+			if (!linkId_.empty() && !switchLinkState_->IsActive(linkId_))
+			{
+				SoundManager::GetInstance()->PlaySE(SoundEffect::kSwitch);
+			}
 			switchLinkState_->Activate(linkId_, kOreSwitchActiveFrames);
 		}
 		break;

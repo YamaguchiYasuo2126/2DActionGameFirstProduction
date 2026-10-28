@@ -10,17 +10,21 @@ ClearScene::ClearScene() = default;
 ClearScene::~ClearScene()
 {
 	delete backgroundSprite_;
+	delete clearLogoSprite_;
 	delete fade_;
 }
 
 void ClearScene::Initialize()
 {
 	GameTime::SetTimeScale(1.0f);
-	// クリア画像が未作成でも画面遷移を確認できるよう、単色背景を表示する。
+	// 背景は既存の単色のまま、クリア文字だけを重ねる。
 	const uint32_t textureHandle = TextureManager::Load("white1x1.png");
 	backgroundSprite_ = Sprite::Create(textureHandle, Vector2(0.0f, 0.0f));
 	backgroundSprite_->SetSize(Vector2(1280.0f, 720.0f));
 	backgroundSprite_->SetColor(Vector4(0.08f, 0.32f, 0.18f, 1.0f));
+	const uint32_t logoTexture = TextureManager::Load("UI/gameClear.png");
+	clearLogoSprite_ = Sprite::Create(logoTexture, Vector2(160.0f, 199.0f));
+	clearLogoSprite_->SetSize(Vector2(960.0f, 322.0f));
 
 	fade_ = new Fade();
 	fade_->Initialize();
@@ -65,6 +69,7 @@ void ClearScene::Draw()
 {
 	Sprite::PreDraw();
 	backgroundSprite_->Draw();
+	clearLogoSprite_->Draw();
 	Sprite::PostDraw();
 
 	// 背景の上へ黒フェードを重ねる。

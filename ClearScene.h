@@ -31,7 +31,8 @@ private:
 
 	static inline const float kFadeDuration = 1.0f;
 
-	// クリア画面の背景。後でクリア用画像に差し替え可能。
+	// 背景色と、背景透過のクリア文字を別々に描画する。
 	KamataEngine::Sprite* backgroundSprite_ = nullptr;
+	KamataEngine::Sprite* clearLogoSprite_ = nullptr;
 	Fade* fade_ = nullptr;
 };

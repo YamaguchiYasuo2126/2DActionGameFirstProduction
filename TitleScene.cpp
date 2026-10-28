@@ -1,7 +1,6 @@
 #include "TitleScene.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include "MyMathUtility.h"
 #include "GamePadInput.h"
 #include "GameTime.h"
 #include "SoundManager.h"
@@ -18,8 +17,7 @@ TitleScene::~TitleScene()
 	// 自キャラの3Dモデルデータの解放
 	delete modelPlayer_;
 
-	// タイトル文字の3Dモデルデータの解放
-	delete modelTitleText_;
+	delete titleLogoSprite_;
 
 	// カメラコントローラの解放
 	delete cameraController_;
@@ -31,22 +29,13 @@ TitleScene::~TitleScene()
 void TitleScene::Initialize() 
 {
 	GameTime::SetTimeScale(1.0f);
-	// ワールドトランスフォームの初期化
-	worldTransform_.Initialize();
-
-	// タイトルのワールドトランスフォームの初期化と座標設定
-	worldTransformTitle_.Initialize();
-	// 画面の中央より少し上に配置
-	worldTransformTitle_.translation_ = {0.0f, 6.0f, 20.0f};
-
-	// ファイル名を指定してテクスチャを読み込む
-
 	// 3Dモデルデータの生成
 	// プレイヤーのモデルデータ生成
 	modelPlayer_ = Model::CreateFromOBJ("player", true);
 
-	// タイトル文字のモデルデータ生成
-	modelTitleText_ = Model::CreateFromOBJ("titleFont", true);
+	const uint32_t titleTexture = TextureManager::Load("UI/Title.png");
+	titleLogoSprite_ = Sprite::Create(titleTexture, Vector2(240.0f, 35.0f));
+	titleLogoSprite_->SetSize(Vector2(800.0f, 267.0f));
 
 	// 自キャラの生成
 	player_ = new Player();
@@ -126,12 +115,8 @@ void TitleScene::Update()
 
 	// 毎フレームタイマーを加算して時間を進める
 	titleFloatingTimer_ += 0.05f * GameTime::GetDeltaFrames();
-	// sinf関数にタイマーを渡してY座標を計算
-	worldTransformTitle_.translation_.y = 6.0f + sinf(titleFloatingTimer_) * 0.5f;
-
-	// タイトルのワールド行列を更新して定数バッファに転送
-	worldTransformTitle_.matWorld_ = MyMathUtility::MakeAffineMatrix(worldTransformTitle_.scale_, worldTransformTitle_.rotation_, worldTransformTitle_.translation_);
-	worldTransformTitle_.TransferMatrix();
+	// タイトルロゴを画面上部で少しだけ上下させる。
+	titleLogoSprite_->SetPosition(Vector2(240.0f, 35.0f + sinf(titleFloatingTimer_) * 8.0f));
 
 	
 }
@@ -145,12 +130,12 @@ void TitleScene::Draw()
 	// プレイヤーの描画
 	player_->Draw();
 
-	// タイトルの描画
-	modelTitleText_->Draw(worldTransformTitle_, *cameraController_->GetCamera());
+	// 3Dモデル描画後処理
+	Model::PostDraw();
+	Sprite::PreDraw();
+	titleLogoSprite_->Draw();
+	Sprite::PostDraw();
 
 	// フェードの描画
 	fade_->Draw();
-
-	// 3Dモデル描画後処理
-	Model::PostDraw();
 }

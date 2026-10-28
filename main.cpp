@@ -258,7 +258,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	using namespace KamataEngine;
 
 	// エンジンの初期化
-	KamataEngine::Initialize(L"カエルカエる");
+	KamataEngine::Initialize(L"カエルカケル");
 	GameTime::Initialize();
 
 	// DirectXCommonインスタンスの取得

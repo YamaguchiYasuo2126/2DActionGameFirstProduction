@@ -57,14 +57,8 @@ private:
 	// プレイヤーの3Dモデルデータ
 	KamataEngine::Model* modelPlayer_ = nullptr;
 
-	// タイトル文字の3Dモデルデータ
-	KamataEngine::Model* modelTitleText_ = nullptr;
-
-	// ワールドトランスフォーム
-	KamataEngine::WorldTransform worldTransform_;
-
-	// タイトルのワールドトランスフォーム
-	KamataEngine::WorldTransform worldTransformTitle_;
+	// 背景透過のタイトルロゴ
+	KamataEngine::Sprite* titleLogoSprite_ = nullptr;
 
 	// タイトルを浮遊させるためのタイマー変数
 	float titleFloatingTimer_ = 0.0f;

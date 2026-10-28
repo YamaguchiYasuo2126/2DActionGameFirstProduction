@@ -492,7 +492,7 @@ void Player::MoveInput()
 				rushStartPosition_ = worldTransform_.translation_;
 				rushDirection_ = {directionX, directionY, 0.0f};
 				++rushSequence_;
-				SoundManager::GetInstance()->PlaySE(SoundEffect::kJump);
+				SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerAttack);
 			}
 		}
 	}
@@ -1658,6 +1658,7 @@ void Player::TakeDamage(int32_t damage, float sourceX)
 	}
 	else
 	{
+		SoundManager::GetInstance()->PlaySE(SoundEffect::kPlayerDamage);
 		RequestKnockback(sourceX);
 	}
 }
@@ -1844,6 +1845,7 @@ bool Player::TryCollectAirRushRing()
 	// 既に使用可能でも2回分には増やさず、1回分を満たすだけにする。
 	canAirRush_ = true;
 	++ringPickupSequence_;
+	SoundManager::GetInstance()->PlaySE(SoundEffect::kRingGet);
 	return true;
 }
 

@@ -2,6 +2,7 @@
 
 #include "MyMathUtility.h"
 #include "Player.h"
+#include "SoundManager.h"
 #include "WorldProgress.h"
 
 using namespace KamataEngine;
@@ -77,5 +78,6 @@ void CheckpointTrigger::OnPlayerCollision(Player* player)
 	if (!progress_->IsCurrentCheckpoint(roomPath_, checkpointId_))
 	{
 		progress_->ActivateCheckpoint(roomPath_, checkpointId_, worldTransform_.translation_);
+		SoundManager::GetInstance()->PlaySE(SoundEffect::kCheckpoint);
 	}
 }
